@@ -1,0 +1,55 @@
+---
+title: "GSE75748 data analysis"
+author: "German Novakovskiy"
+date: '4 March 2018'
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here we analyze gene expression data from [this paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1033-x). Some analysis steps are made according to [this workflow article](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4937821/).
+
+```{r}
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("GEOquery", "biomaRt")
+library(GEOquery)
+library(biomaRt)
+#install.packages("tidyverse")
+library(tidyverse)
+#install.packages("data.table")
+library(data.table)
+#install.packages("reshape2")
+library(reshape2)
+```
+
+Let's read our data into R (GSE75748):
+```{r}
+if (file.exists("GSE75748.Rdata")) {
+    # if previously downloaded
+    load("GSE75748.Rdata")
+} else {
+    # Get geo object that contains our data and phenotype information
+    geo_obj <- getGEO("GSE75748", GSEMatrix = TRUE)
+    #geo_obj contains 1810 entries ((1018 + 758) single cells + (19 + 15) bulk RNA-seq)
+    geo_obj <- geo_obj[[1]]
+    save(geo_obj, file = "GSE70213.Rdata")
+}
+```
+
+Further analysis of the downloaded data:
+```{r}
+#show data structure
+show(geo_obj)
+```
+
+assayData has 0 features, it's not possible to load expression data from this dataset. That's why we will use expression data downloaded directly from the website
+```{r}
+#cell type
+bulk_cell_type_ec <- read.csv("GSE75748_bulk_cell_type_ec.csv/GSE75748_bulk_cell_type_ec.csv", header=TRUE, 
+                              row.names = 1)
+#time course
+bulk_time_course_ec <- read.csv("GSE75748_bulk_time_course_ec.csv/GSE75748_bulk_time_course_ec.csv", header=TRUE, 
+                              row.names = 1)
+```
