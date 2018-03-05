@@ -22,6 +22,8 @@ library(tidyverse)
 library(data.table)
 #install.packages("reshape2")
 library(reshape2)
+library(dplyr)
+library(ggplot2)
 ```
 
 Let's read our data into R (GSE75748):
@@ -34,7 +36,7 @@ if (file.exists("GSE75748.Rdata")) {
     geo_obj <- getGEO("GSE75748", GSEMatrix = TRUE)
     #geo_obj contains 1810 entries ((1018 + 758) single cells + (19 + 15) bulk RNA-seq)
     geo_obj <- geo_obj[[1]]
-    save(geo_obj, file = "GSE70213.Rdata")
+    save(geo_obj, file = "GSE75748.Rdata")
 }
 ```
 
@@ -47,9 +49,23 @@ show(geo_obj)
 assayData has 0 features, it's not possible to load expression data from this dataset. That's why we will use expression data downloaded directly from the website
 ```{r}
 #cell type
-bulk_cell_type_ec <- read.csv("GSE75748_bulk_cell_type_ec.csv/GSE75748_bulk_cell_type_ec.csv", header=TRUE, 
-                              row.names = 1)
+bulk_cell_type_ec <- read.csv("GSE75748_bulk_cell_type_ec.csv/GSE75748_bulk_cell_type_ec.csv", header=TRUE)
 #time course
-bulk_time_course_ec <- read.csv("GSE75748_bulk_time_course_ec.csv/GSE75748_bulk_time_course_ec.csv", header=TRUE, 
-                              row.names = 1)
+bulk_time_course_ec <- read.csv("GSE75748_bulk_time_course_ec.csv/GSE75748_bulk_time_course_ec.csv", header=TRUE)
 ```
+
+Our primary goal here is to analyze bulk_time_course data (each stage with the next stage, step-by-step).
+
+Now let's do some sanity check: let's see how gene expression is distributed across different samples in different time points:
+
+```{r}
+#change first column name to gene
+colnames(bulk_time_course_ec)[1] <- "gene"
+meltedBultTimeCourseEc <- melt(bulk_time_course_ec, id='gene')
+
+meltedBultTimeCourseEc %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
