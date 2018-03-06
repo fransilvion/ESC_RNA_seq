@@ -69,6 +69,13 @@ meltedBultTimeCourseEc %>%
   geom_boxplot() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
+Let's look at density plots:
+```{r}
+meltedBultTimeCourseEc %>% 
+  ggplot(aes(x = value, color = variable)) +
+  geom_density() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
 
 We can look at the variance and means across all samples to see, how bad is the situation:
 ```{r}
@@ -99,4 +106,39 @@ mean <- ggplot(df, aes(x = Samples, y = Mean, group = 1, colour = "mean")) +
 
 plot_grid(variance, mean, labels = "AUTO")
 ```
+
+We can see that variance and means are both not the same at all for different samples (even the same replicates).
+Let's look at H9_12_rep1 distribution of values:
+
+```{r}
+#removing gene column and transforming into matrix (for hist)
+data <- as.matrix(bulk_time_course_ec[,-1])
+
+hist(data, main="GSE75748", xlim = c(0,1500), xlab = "Expression",
+     ylab = "Frequency", breaks = 300)
+```
+
+Let's try a log transformation here:
+
+```{r}
+
+hist(log2(data + 1), main="GSE75748 - log2 transformed", xlab = "Expression",
+     ylab = "Frequency")
+```
+
+```{r}
+#changing the original data frame into log2
+loged_bulk_time_course_ec <- bulk_time_course_ec
+loged_bulk_time_course_ec[,2:dim(bulk_time_course_ec)[2]] <- log2(loged_bulk_time_course_ec[,
+                                                                                        2:dim(bulk_time_course_ec)[2]]
+                                                                  + 1)
+
+meltedBultTimeCourseEc <- melt(bulk_time_course_ec, id='gene')
+
+meltedBultTimeCourseEc %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
 
