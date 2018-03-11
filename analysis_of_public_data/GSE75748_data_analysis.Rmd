@@ -14,17 +14,17 @@ Here we analyze gene expression data from [this paper](https://genomebiology.bio
 ```{r}
 #source("https://bioconductor.org/biocLite.R")
 #biocLite("GEOquery", "biomaRt")
-library(GEOquery)
-library(biomaRt)
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(biomaRt)))
 #install.packages("tidyverse")
-library(tidyverse)
+suppressWarnings(suppressMessages(library(tidyverse)))
 #install.packages("data.table")
-library(data.table)
+suppressWarnings(suppressMessages(library(data.table)))
 #install.packages("reshape2")
-library(reshape2)
-library(dplyr)
-library(ggplot2)
-library(cowplot)
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
 ```
 
 Let's read our data into R (GSE75748):
@@ -45,6 +45,10 @@ Further analysis of the downloaded data:
 ```{r}
 #show data structure
 show(geo_obj)
+```
+Let's load metadata:
+```{r}
+geo_metadata <- pData(geo_obj)
 ```
 
 assayData has 0 features, it's not possible to load expression data from this dataset. That's why we will use expression data downloaded directly from the website
@@ -121,10 +125,13 @@ hist(data, main="GSE75748", xlim = c(0,1500), xlab = "Expression",
 Let's try a log transformation here:
 
 ```{r}
-
 hist(log2(data + 1), main="GSE75748 - log2 transformed", xlab = "Expression",
      ylab = "Frequency")
 ```
+
+All datasets will include a mix of genes that are expressed and those that are not expressed. Whilst it is of interest
+to examine genes that are expressed in one condition but not in another, some genes are unexpressed throughout all
+samples. Let's check how many genes have zero expression across all 15 samples (in time series data):
 
 ```{r}
 #changing the original data frame into log2
@@ -133,12 +140,29 @@ loged_bulk_time_course_ec[,2:dim(bulk_time_course_ec)[2]] <- log2(loged_bulk_tim
                                                                                         2:dim(bulk_time_course_ec)[2]]
                                                                   + 1)
 
-meltedBultTimeCourseEc <- melt(bulk_time_course_ec, id='gene')
+table(rowSums(loged_bulk_time_course_ec[,-1]==0)==15)
+```
+We see that more than 15% of genes don't have any expression across all samples. Let's just delete them:
+```{r}
+#let's delete those genes that have less than 3 samples without zero expression
+keep.exprs <- rowSums(loged_bulk_time_course_ec[,-1] > 0) > 3
+cleaned_log_bulk_time_course_ec <- loged_bulk_time_course_ec[x,]
+```
+```{r}
+log_clean_data <- as.matrix(cleaned_log_bulk_time_course_ec[,-1])
 
-meltedBultTimeCourseEc %>%
+hist(log_clean_data, main="cleaned GSE75748 - log2 transformed", xlab = "Expression",
+     ylab = "Frequency")
+```
+Let's build boxplots and explore the data:
+
+```{r}
+meltedLogedBultTimeCourseEc <- melt(cleaned_log_bulk_time_course_ec, id='gene')
+
+meltedLogedBultTimeCourseEc %>%
   ggplot(aes(x = variable, y = value)) +
   geom_boxplot() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-
+Looks much better now!
