@@ -12,22 +12,17 @@ knitr::opts_chunk$set(echo = TRUE)
 Here we analyze gene expression data from [this paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1033-x). Some analysis steps are made according to [this workflow article](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4937821/).
 
 ```{r}
-#source("https://bioconductor.org/biocLite.R")
-#biocLite("GEOquery", "biomaRt")
 library(knitr)
+#suppressWarnings(suppressMessages(library(tidyverse)))
 suppressWarnings(suppressMessages(library(GEOquery)))
-suppressWarnings(suppressMessages(library(biomaRt)))
-#install.packages("tidyverse")
-suppressWarnings(suppressMessages(library(tidyverse)))
-#install.packages("data.table")
 suppressWarnings(suppressMessages(library(data.table)))
-#install.packages("reshape2")
 suppressWarnings(suppressMessages(library(reshape2)))
 suppressWarnings(suppressMessages(library(dplyr)))
 suppressWarnings(suppressMessages(library(ggplot2)))
 suppressWarnings(suppressMessages(library(cowplot)))
 suppressWarnings(suppressMessages(library(limma)))
 suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
 ```
 
 Let's read our data into R (GSE75748):
@@ -188,8 +183,12 @@ meltedLogedBultTimeCourseEc %>%
 ```
 
 Looks much better now!
+```{r}
+plotMDS(cleaned_log_bulk_time_course_ec[,-1], cex=1.5)
+```
+It's clear that time ponts 12h, 24h and 36h are clearly separated from each other and 72h with 96h, however the last group is clustered closer together, thus we don't expect to see much DE genes in these groups.
 
-let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
+Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
 ```{r}
 metadata_time <- metadata[,-3]
 metadata_time
@@ -230,7 +229,7 @@ contrastGenes
 ```
 
 ```{r}
-cutoff <- 1e-04
+cutoff <- 1e-03
 time_course_res <- decideTests(contrastFitEb, p.value = cutoff, method = "global")
 summary(time_course_res)
 ```
@@ -240,29 +239,88 @@ We see there are different number of genes up and down regulated at each stage.
 Here are the 34 genes that upregulated from 24 hours to 36 hours.
 
 ```{r}
-hits1 <- time_course_res %>% 
+hits2 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v36v24 > 0)
 
-hits1
+hits2
 ```
 
 ```{r}
-plotGenes <- function(genes, expressionMatrix, samplesMetadata) {
+#function for plotting genes
+plotGenes <- function(genes, expressionMatrix, metadata) {
   
-  expressionDataForGenes <- expressionMatrix %>% 
-    rownames_to_column("gene") %>% 
-    filter(gene %in% genes) %>%
-    transformGeneExpressionMatrix() %>% 
-    left_join(samplesMetadata, id = "sample_id")
+  expressionDataForGenes <- melt(cleaned_log_bulk_time_course_ec[cleaned_log_bulk_time_course_ec$gene %in% sample_genes_24v12,])
+  
+  colnames(expressionDataForGenes) <- c("gene", "samples", "expression")
+  expressionDataForGenes <- expressionDataForGenes %>%
+    left_join(metadata, id="time")
   
   expressionDataForGenes %>% 
-    ggplot(aes(x = dev_stage, y = expression, color = genotype)) +
+    ggplot(aes(x = time, y = expression, color=gene)) +
     geom_point() +
     geom_jitter() +
-    stat_summary(aes(y = expression, group=1), fun.y = mean, geom="line") +
+    stat_summary(aes(y = expression, group=1), fun.y = "mean", geom="line", size=2) +
     facet_wrap(~gene)
 }
+
+```
+
+Let's plot 4 random genes that are upregulated at each stage.
+
+```{r}
+#stage 24v12
+hits1 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(v24v12 > 0)
+
+#stage 72v36
+hits3 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(v72v36 > 0)
+
+#stage 96v72
+hits4 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(v96v72 > 0)
+```
+```{r}
+sample_genes_24v12 <- sample(hits1$gene,4)
+
+#plotGenes(sample_genes_24v12, cleaned_log_bulk_time_course_ec, metadata)
+```
+```{r}
+sample_genes_36v24 <- sample(hits2$gene,4)
+#plotGenes(sample_genes_36v24, cleaned_log_bulk_time_course_ec, metadata)
+```
+
+```{r}
+sample_genes_72v36 <- sample(hits3$gene,4)
+#plotGenes(sample_genes_72v36, cleaned_log_bulk_time_course_ec, metadata)
+```
+```{r}
+sample_genes_96v72 <- sample(hits4$gene,4)
+#plotGenes(sample_genes_96v72, cleaned_log_bulk_time_course_ec, metadata)
+```
+
+let's build those genes that according to the paper are DE in 24v12 transition:
+```{r}
+sample_genes <- c("T", "CDX1", "MSX2")
+#plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
+```
+
+* COMMENTS *
+- paper reports that CDX1, MSX2 and T are over expressed from 12 to 24h transition. I see only T (p-value cutoff 1e-3)
+- paper reports that CER1 and GATA4 are over expressed from 24 to 36h transition.I see both (p-value cutoff 1e-3)
+- paper reports that DKK4 and MYCT1 are over expressed from 36 to 72. I see both (p-value cutoff 1e-3)
+- let's look at the expression of these genes EOMES, CER1, GATA4, PRDM1, and POU2AF1 at 96h:
+
+```{r}
+sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1")
+#plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
 ```
 
