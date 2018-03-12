@@ -251,7 +251,9 @@ hits2
 #function for plotting genes
 plotGenes <- function(genes, expressionMatrix, metadata) {
   
-  expressionDataForGenes <- melt(cleaned_log_bulk_time_course_ec[cleaned_log_bulk_time_course_ec$gene %in% sample_genes_24v12,])
+  expressionDataForGenes <- expressionMatrix %>%
+    filter(gene %in% genes) %>%
+    melt()
   
   colnames(expressionDataForGenes) <- c("gene", "samples", "expression")
   expressionDataForGenes <- expressionDataForGenes %>%
@@ -290,27 +292,26 @@ hits4 <- time_course_res %>%
 ```
 ```{r}
 sample_genes_24v12 <- sample(hits1$gene,4)
-
-#plotGenes(sample_genes_24v12, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_24v12, cleaned_log_bulk_time_course_ec, metadata)
 ```
 ```{r}
 sample_genes_36v24 <- sample(hits2$gene,4)
-#plotGenes(sample_genes_36v24, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_36v24, cleaned_log_bulk_time_course_ec, metadata)
 ```
 
 ```{r}
 sample_genes_72v36 <- sample(hits3$gene,4)
-#plotGenes(sample_genes_72v36, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_72v36, cleaned_log_bulk_time_course_ec, metadata)
 ```
 ```{r}
 sample_genes_96v72 <- sample(hits4$gene,4)
-#plotGenes(sample_genes_96v72, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_96v72, cleaned_log_bulk_time_course_ec, metadata)
 ```
 
 let's build those genes that according to the paper are DE in 24v12 transition:
 ```{r}
 sample_genes <- c("T", "CDX1", "MSX2")
-#plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
 ```
 
 * COMMENTS *
@@ -321,6 +322,6 @@ sample_genes <- c("T", "CDX1", "MSX2")
 
 ```{r}
 sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1")
-#plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
 ```
 
