@@ -252,6 +252,7 @@ hits2
 plotGenes <- function(genes, expressionMatrix, metadata) {
   
   expressionDataForGenes <- expressionMatrix %>%
+    rownames_to_column("gene") %>%
     filter(gene %in% genes) %>%
     melt()
   
