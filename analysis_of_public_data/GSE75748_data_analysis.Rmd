@@ -13,7 +13,7 @@ Here we analyze gene expression data from [this paper](https://genomebiology.bio
 
 ```{r}
 library(knitr)
-#suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(tidyverse)))
 suppressWarnings(suppressMessages(library(GEOquery)))
 suppressWarnings(suppressMessages(library(data.table)))
 suppressWarnings(suppressMessages(library(reshape2)))
@@ -23,6 +23,7 @@ suppressWarnings(suppressMessages(library(cowplot)))
 suppressWarnings(suppressMessages(library(limma)))
 suppressWarnings(suppressMessages(library(tibble)))
 suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
 ```
 
 Let's read our data into R (GSE75748):
@@ -70,7 +71,7 @@ time_int <- rep(c(12,24,36,72,96), each=3) #time as continious variable
 
 metadata <- data.frame(samples = sample_names, time = time_fact, age = time_int)
 
-metadata
+metadata %>% kable()
 ```
 ```{r}
 str(metadata)
@@ -78,12 +79,41 @@ str(metadata)
 
 Our primary goal here is to analyze bulk_time_course data (each stage with the next stage, step-by-step).
 
+Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (according to GEO query). Thus, we first have to transform them to CPM (counts per million) using edgeR (and also perform a library size normalization):
+
+```{r}
+#first let's create a edgeR DGElist object
+bulk_time_course_ec <- as.matrix(bulk_time_course_ec)
+rows <- bulk_time_course_ec[,1]
+bulk_time_course_ec <- bulk_time_course_ec[,-1]
+bulk_time_course_ec <- apply(bulk_time_course_ec, 2, as.double)
+rownames(bulk_time_course_ec) <- rows
+
+DGE_bulk_time_course_ec <- DGEList(counts = bulk_time_course_ec) 
+normalized_factors_expression <- calcNormFactors(DGE_bulk_time_course_ec, method = "TMM") #calculation of scaling factors (for library size)
+
+normalized_factors_expression$samples$norm.factors
+```
+
+For this dataset the effect of TMM-normalisation is mild, as evident in the magnitude of the scaling factors, which are all relatively close to 1.
+
+Now let's calculate the cpm values for this expression dataset (taking into consideration the calculated above factors)
+```{r}
+cpm_bulk_time_course_expression <- cpm(normalized_factors_expression, log = FALSE)
+
+head(cpm_bulk_time_course_expression) %>% kable()
+```
+
+
 Now let's do some sanity check: let's see how gene expression is distributed across different samples in different time points:
 
 ```{r}
 #change first column name to gene
-colnames(bulk_time_course_ec)[1] <- "gene"
-meltedBultTimeCourseEc <- melt(bulk_time_course_ec, id='gene')
+cpm_df <- as.data.frame(cpm_bulk_time_course_expression)
+cpm_df <- cpm_df %>%
+  rownames_to_column("gene")
+
+meltedBultTimeCourseEc <- melt(cpm_df, id='gene')
 
 meltedBultTimeCourseEc %>%
   ggplot(aes(x = variable, y = value)) +
@@ -101,10 +131,10 @@ meltedBultTimeCourseEc %>%
 We can look at the variance and means across all samples to see, how bad is the situation:
 ```{r}
 #calculating variances of different samples
-var_column <- apply(bulk_time_course_ec[,-1], 2, var)
+var_column <- apply(cpm_df[,-1], 2, var)
 
 #calculating means of different samples
-mean_column <- apply(bulk_time_course_ec[,-1], 2, mean)
+mean_column <- apply(cpm_df[,-1], 2, mean)
 
 #creating a data frame
 df <- data.frame(Samples = names(var_column), Variance = var_column, Mean = mean_column)
@@ -128,21 +158,20 @@ mean <- ggplot(df, aes(x = Samples, y = Mean, group = 1, colour = "mean")) +
 plot_grid(variance, mean, labels = "AUTO")
 ```
 
-We can see that variance and means are both not the same at all for different samples (even the same replicates).
-Let's look at H9_12_rep1 distribution of values:
+We can see that variance and means are both not the same at all for different samples (especially for 72 hours samples).
+Let's look at distribution of values:
 
 ```{r}
 #removing gene column and transforming into matrix (for hist)
-data <- as.matrix(bulk_time_course_ec[,-1])
+data <- as.matrix(cpm_df[,-1])
 
 hist(data, main="GSE75748", xlim = c(0,1500), xlab = "Expression",
      ylab = "Frequency", breaks = 300)
 ```
-
 Let's try a log transformation here:
 
 ```{r}
-hist(log2(data + 1), main="GSE75748 - log2 transformed", xlab = "Expression",
+hist(log2(data + 0.25), main="GSE75748 - log2 transformed", xlab = "Expression",
      ylab = "Frequency")
 ```
 
@@ -152,21 +181,19 @@ samples. Let's check how many genes have zero expression across all 15 samples (
 
 ```{r}
 #changing the original data frame into log2
-loged_bulk_time_course_ec <- bulk_time_course_ec
-loged_bulk_time_course_ec[,2:dim(bulk_time_course_ec)[2]] <- log2(loged_bulk_time_course_ec[,
-                                                                                        2:dim(bulk_time_course_ec)[2]]
-                                                                  + 1)
+log_cpm_df <- cpm_df
+log_cpm_df[,2 : ncol(cpm_df)] <- log2(log_cpm_df[,2:ncol(cpm_df)] + 1)
 
-table(rowSums(loged_bulk_time_course_ec[,-1]==0)==15)
+table(rowSums(log_cpm_df[,-1]==0)==15)
 ```
-We see that more than 15% of genes don't have any expression across all samples. Let's just delete them:
+We see that more than 18% of genes don't have any expression across all samples. Let's just delete them:
 ```{r}
 #let's delete those genes that have less than 3 samples without zero expression
-keep.exprs <- rowSums(loged_bulk_time_course_ec[,-1] > 0) > 3
-cleaned_log_bulk_time_course_ec <- loged_bulk_time_course_ec[keep.exprs,]
+keep.exprs <- rowSums(log_cpm_df[,-1] > 0) > 3
+cleaned_log_cpm_df <- log_cpm_df[keep.exprs,]
 ```
 ```{r}
-log_clean_data <- as.matrix(cleaned_log_bulk_time_course_ec[,-1])
+log_clean_data <- as.matrix(cleaned_log_cpm_df[,-1])
 
 hist(log_clean_data, main="cleaned GSE75748 - log2 transformed", xlab = "Expression",
      ylab = "Frequency")
@@ -174,7 +201,7 @@ hist(log_clean_data, main="cleaned GSE75748 - log2 transformed", xlab = "Express
 Let's build boxplots and explore the data:
 
 ```{r}
-meltedLogedBultTimeCourseEc <- melt(cleaned_log_bulk_time_course_ec, id='gene')
+meltedLogedBultTimeCourseEc <- melt(cleaned_log_cpm_df, id='gene')
 
 meltedLogedBultTimeCourseEc %>%
   ggplot(aes(x = variable, y = value)) +
@@ -184,7 +211,7 @@ meltedLogedBultTimeCourseEc %>%
 
 Looks much better now!
 ```{r}
-plotMDS(cleaned_log_bulk_time_course_ec[,-1], cex=1.5)
+plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
 ```
 It's clear that time ponts 12h, 24h and 36h are clearly separated from each other and 72h with 96h, however the last group is clustered closer together, thus we don't expect to see much DE genes in these groups.
 
