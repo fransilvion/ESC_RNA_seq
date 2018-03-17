@@ -219,14 +219,13 @@ Looks much better now!
 ```{r}
 plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
 ```
-I STOPPED HERE
 
-It's clear that time ponts 12h, 24h and 36h are clearly separated from each other and 72h with 96h, however the last group is clustered closer together, thus we don't expect to see much DE genes in these groups.
+It's clear that time ponts 12h, 24h and 36h are well separated from each other and 72h with 96h, however the last group (72 and 96) is clustered closer together, thus we don't expect to see much DE genes in these groups.
 
 Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
 ```{r}
 metadata_time <- metadata[,-3]
-metadata_time
+metadata_time %>% kable()
 ```
 ```{r}
 designMatrix <- model.matrix(~0 + time, metadata_time)
@@ -234,8 +233,8 @@ head(designMatrix, 10) %>% kable()
 ```
 
 ```{r}
-rownames(cleaned_log_bulk_time_course_ec) <- cleaned_log_bulk_time_course_ec$gene
-cleaned_log_bulk_time_course_ec <- cleaned_log_bulk_time_course_ec[,-1]
+rownames(cleaned_log_cpm_df) <- cleaned_log_cpm_df$gene
+cleaned_log_cpm_df <- cleaned_log_cpm_df[,-1]
 
 # construct the contrast matrix
 contrastMatrix <- makeContrasts(
@@ -246,11 +245,11 @@ contrastMatrix <- makeContrasts(
   levels = designMatrix
 )
 
-contrastMatrix
+contrastMatrix %>% kable()
 ```
 ```{r}
 # keep the fit around as we will need to it for looking at other contrasts later 
-time_course_Fit <- lmFit(cleaned_log_bulk_time_course_ec, designMatrix)
+time_course_Fit <- lmFit(cleaned_log_cpm_df, designMatrix)
 
 # fit the contrast using the original fitted model
 contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
@@ -260,18 +259,18 @@ contrastFitEb <- eBayes(contrastFit)
 
 contrastGenes <- topTable(contrastFitEb)
 
-contrastGenes
+contrastGenes %>% kable()
 ```
 
 ```{r}
-cutoff <- 1e-03
-time_course_res <- decideTests(contrastFitEb, p.value = cutoff, method = "global")
+cutoff <- 5e-02 #0.05 p value
+time_course_res <- decideTests(contrastFitEb, p.value = cutoff)
 summary(time_course_res)
 ```
 
 We see there are different number of genes up and down regulated at each stage. 
 
-Here are the 34 genes that upregulated from 24 hours to 36 hours.
+Here are the genes that upregulated from 24 hours to 36 hours.
 
 ```{r}
 hits2 <- time_course_res %>% 
@@ -279,7 +278,7 @@ hits2 <- time_course_res %>%
   rownames_to_column("gene") %>% 
   filter(v36v24 > 0)
 
-hits2
+head(hits2) %>% kable()
 ```
 
 ```{r}
@@ -328,26 +327,26 @@ hits4 <- time_course_res %>%
 ```
 ```{r}
 sample_genes_24v12 <- sample(hits1$gene,4)
-plotGenes(sample_genes_24v12, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_24v12, cleaned_log_cpm_df, metadata)
 ```
 ```{r}
 sample_genes_36v24 <- sample(hits2$gene,4)
-plotGenes(sample_genes_36v24, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_36v24, cleaned_log_cpm_df, metadata)
 ```
 
 ```{r}
 sample_genes_72v36 <- sample(hits3$gene,4)
-plotGenes(sample_genes_72v36, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_72v36, cleaned_log_cpm_df, metadata)
 ```
 ```{r}
 sample_genes_96v72 <- sample(hits4$gene,4)
-plotGenes(sample_genes_96v72, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes_96v72, cleaned_log_cpm_df, metadata)
 ```
 
 let's build those genes that according to the paper are DE in 24v12 transition:
 ```{r}
 sample_genes <- c("T", "CDX1", "MSX2")
-plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
 
 * COMMENTS *
@@ -358,6 +357,6 @@ plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
 
 ```{r}
 sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1")
-plotGenes(sample_genes, cleaned_log_bulk_time_course_ec, metadata)
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
 
