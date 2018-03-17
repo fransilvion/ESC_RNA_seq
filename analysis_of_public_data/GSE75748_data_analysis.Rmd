@@ -192,6 +192,12 @@ We see that more than 18% of genes don't have any expression across all samples.
 keep.exprs <- rowSums(log_cpm_df[,-1] > 0) > 3
 cleaned_log_cpm_df <- log_cpm_df[keep.exprs,]
 ```
+
+The number of remained genes:
+```{r}
+nrow(cleaned_log_cpm_df)
+```
+
 ```{r}
 log_clean_data <- as.matrix(cleaned_log_cpm_df[,-1])
 
@@ -213,6 +219,8 @@ Looks much better now!
 ```{r}
 plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
 ```
+I STOPPED HERE
+
 It's clear that time ponts 12h, 24h and 36h are clearly separated from each other and 72h with 96h, however the last group is clustered closer together, thus we don't expect to see much DE genes in these groups.
 
 Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
