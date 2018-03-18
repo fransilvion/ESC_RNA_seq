@@ -517,12 +517,14 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
 ![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-34-1.png)
 
--   COMMENTS \*
+COMMENTS
+--------
+
 -   paper reports that CDX1, MSX2 and T are over expressed from 12 to 24h transition. I see only T and CDX1 (p-value cutoff 5e-02, FDR)
 -   paper reports that CER1 and GATA4 are over expressed from 24 to 36h transition.I see both (p-value cutoff 5e-02, FDR)
 -   paper reports that DKK4 and MYCT1 are over expressed from 36 to 72. I see both (p-value cutoff 5e-02, FDR)
 
-Let's look at the expression of these genes EOMES, CER1, GATA4, PRDM1, and POU2AF1 at 96h (and KLF8 - "KLF8 may play a specific role during the transition from mesendoderm toward DE cells"):
+Let's look at the expression of these genes EOMES, CER1, GATA4, PRDM1, and POU2AF1 at 96h because they are expected to be highly expressed during 96h stage, according to the paper (and KLF8 - "KLF8 may play a specific role during the transition from mesendoderm toward DE cells"):
 
 ``` r
 sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1", "KLF8")
