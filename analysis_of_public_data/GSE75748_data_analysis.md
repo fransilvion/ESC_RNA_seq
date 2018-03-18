@@ -18,6 +18,8 @@ suppressWarnings(suppressMessages(library(limma)))
 suppressWarnings(suppressMessages(library(tibble)))
 suppressWarnings(suppressMessages(library(RColorBrewer)))
 suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
 ```
 
 Let's read our data into R (GSE75748):
@@ -382,6 +384,7 @@ contrastGenes %>% kable()
 
 ``` r
 cutoff <- 5e-02 #0.05 p value
+#adjust method by default is BH (equivalent to fdr)
 time_course_res <- decideTests(contrastFitEb, p.value = cutoff)
 summary(time_course_res)
 ```
@@ -515,13 +518,14 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-34-1.png)
 
 -   COMMENTS \*
--   paper reports that CDX1, MSX2 and T are over expressed from 12 to 24h transition. I see only T (p-value cutoff 1e-3)
--   paper reports that CER1 and GATA4 are over expressed from 24 to 36h transition.I see both (p-value cutoff 1e-3)
--   paper reports that DKK4 and MYCT1 are over expressed from 36 to 72. I see both (p-value cutoff 1e-3)
--   let's look at the expression of these genes EOMES, CER1, GATA4, PRDM1, and POU2AF1 at 96h:
+-   paper reports that CDX1, MSX2 and T are over expressed from 12 to 24h transition. I see only T and CDX1 (p-value cutoff 5e-02, FDR)
+-   paper reports that CER1 and GATA4 are over expressed from 24 to 36h transition.I see both (p-value cutoff 5e-02, FDR)
+-   paper reports that DKK4 and MYCT1 are over expressed from 36 to 72. I see both (p-value cutoff 5e-02, FDR)
+
+Let's look at the expression of these genes EOMES, CER1, GATA4, PRDM1, and POU2AF1 at 96h (and KLF8 - "KLF8 may play a specific role during the transition from mesendoderm toward DE cells"):
 
 ``` r
-sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1")
+sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1", "KLF8")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
 
@@ -529,4 +533,107 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-35-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-35-1.png) Let's look at the expression of pluripotency genes POU5F1, NANOG, and SOX2:
+
+``` r
+sample_genes <- c("POU5F1", "NANOG", "SOX2")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-36-1.png) Their expression is going down, just as expected.
+
+Now let's look at key DE markers CXCR4, SOX17, HNF1B, KIT, and KRT19:
+
+``` r
+sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-37-1.png) It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19 and HNF1B did not change so much, but KRT19 remained highly expressed, while HNF1B remained to be down-regulated.
+
+Comparisons with the paper
+==========================
+
+"A total of 3247 differentially expressed genes were identified in the scRNA-seq time course experiment listed in Additional file 4: Table S3."
+
+In my work I found this number of DE genes:
+
+``` r
+#list all DE genes
+allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05)
+nrow(allDEGenes)
+```
+
+    ## [1] 7095
+
+According to Decide tests we have this number of DE genes (at different time stages):
+
+``` r
+de_genes_rows <- apply(time_course_res, 1, function(x) any(x != 0))
+de_genes_at_stages <- time_course_res[de_genes_rows,]
+nrow(de_genes_at_stages)
+```
+
+    ## [1] 5683
+
+We will check both numbers.
+
+``` r
+all_de_genes <- rownames(allDEGenes)
+stages_de_genes <- rownames(de_genes_at_stages)
+```
+
+Get list of DE genes from the study:
+
+``` r
+paper_de_genes <- read_excel("13059_2016_1033_MOESM4_ESM.xlsx")
+head(paper_de_genes) %>% kable()
+```
+
+| GeneID | most likely pattern |  PP pattern|
+|:-------|:--------------------|-----------:|
+| A2ML1  | Down-NC-NC-NC-NC    |   0.2976393|
+| AAK1   | Down-NC-Up-NC-NC    |   0.4062348|
+| AARS   | Down-NC-NC-NC-NC    |   0.4685744|
+| AARS2  | Down-Up-NC-NC-NC    |   0.2714841|
+| AASS   | Down-NC-Up-NC-NC    |   0.5190453|
+| AATF   | NC-NC-Up-NC-NC      |   0.3152373|
+
+``` r
+paper_de_genes <- paper_de_genes$GeneID
+length(paper_de_genes)
+```
+
+    ## [1] 3247
+
+So there is in fact 3247 genes in the result of this study.
+
+Comparison of DE genes from decideTest with DE genes from the paper:
+
+Comparison of DE genes from topTable with DE genes from the paper:
+
+``` r
+temp <- venn.diagram(list(My_TopTable = all_de_genes, Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my all DE genes (from TopTable)", category.names = c("My topTable", "Paper genes"))
+
+grid::grid.newpage()
+grid::grid.draw(temp)
+```
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-43-1.png)
+
+``` r
+temp2 <- venn.diagram(list(My_TopTable = stages_de_genes, Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my stage DE genes (from decideTests)", category.names = c("Stage DE genes", "Paper genes"))
+
+grid::grid.newpage()
+grid::grid.draw(temp2)
+```
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-44-1.png)
