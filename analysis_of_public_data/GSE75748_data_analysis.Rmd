@@ -267,7 +267,7 @@ contrastGenes %>% kable()
 ```{r}
 cutoff <- 5e-02 #0.05 p value
 #adjust method by default is BH (equivalent to fdr)
-time_course_res <- decideTests(contrastFitEb, p.value = cutoff)
+time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 1)
 summary(time_course_res)
 ```
 
@@ -372,6 +372,7 @@ Their expression is going down, just as expected.
 
 Now let's look at key DE markers CXCR4, SOX17, HNF1B, KIT, and KRT19:
 ```{r}
+#sample_genes <- c("FOXA2")
 sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
@@ -384,7 +385,7 @@ It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19
 In my work I found this number of DE genes:
 ```{r}
 #list all DE genes
-allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05)
+allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
 nrow(allDEGenes)
 ```
 According to Decide tests we have this number of DE genes (at different time stages):
@@ -430,4 +431,35 @@ grid::grid.newpage()
 grid::grid.draw(temp2)
 ```
 
+# Using age as continious
+
+```{r}
+metadata_cont_time <- metadata[,-2]
+metadata_cont_time %>% kable()
+```
+```{r}
+designMatrix <- model.matrix(~0 + age, metadata_cont_time)
+head(designMatrix, 10) %>% kable()
+```
+```{r}
+expressionFit_age <- lmFit(cleaned_log_cpm_df, designMatrix)
+expressionFitBayes_age <- eBayes(expressionFit_age)
+
+topGenesAge <- topTable(expressionFitBayes_age, number = Inf, p.value = 0.05)
+nrow(topGenesAge)
+```
+```{r}
+head(topGenesAge) %>% kable()
+```
+```{r}
+sample_genes <- rownames(topGenesAge)[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+```{r}
+temp <- venn.diagram(list(My_TopTable = rownames(topGenesAge), Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my all DE genes (from TopTable)", category.names = c("My topTable", "Paper genes"))
+
+grid::grid.newpage()
+grid::grid.draw(temp)
+```
 

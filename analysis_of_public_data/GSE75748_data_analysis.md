@@ -385,14 +385,14 @@ contrastGenes %>% kable()
 ``` r
 cutoff <- 5e-02 #0.05 p value
 #adjust method by default is BH (equivalent to fdr)
-time_course_res <- decideTests(contrastFitEb, p.value = cutoff)
+time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 1)
 summary(time_course_res)
 ```
 
     ##        v24v12 v36v24 v72v36 v96v72
-    ## Down      160    361   2516    145
-    ## NotSig  14132  13767   9479  14293
-    ## Up        301    465   2598    155
+    ## Down      137    294   1697    121
+    ## NotSig  14208  13902  11032  14336
+    ## Up        248    397   1864    136
 
 We see there are different number of genes up and down regulated at each stage.
 
@@ -409,12 +409,12 @@ head(hits2) %>% kable()
 
 | gene   |  v24v12|  v36v24|  v72v36|  v96v72|
 |:-------|-------:|-------:|-------:|-------:|
-| AADAT  |       0|       1|      -1|       0|
-| ABCC4  |       0|       1|      -1|       0|
 | ABHD6  |       1|       1|      -1|       0|
 | ABLIM1 |       0|       1|      -1|       0|
 | ABTB2  |       0|       1|       0|       0|
-| ACSS3  |       1|       1|       1|       0|
+| ACSS3  |       1|       1|       0|       0|
+| ACVRL1 |       0|       1|       1|       0|
+| ADAM12 |       0|       1|       0|       1|
 
 ``` r
 #function for plotting genes
@@ -551,6 +551,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 Now let's look at key DE markers CXCR4, SOX17, HNF1B, KIT, and KRT19:
 
 ``` r
+#sample_genes <- c("FOXA2")
 sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
@@ -570,11 +571,11 @@ In my work I found this number of DE genes:
 
 ``` r
 #list all DE genes
-allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05)
+allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
 nrow(allDEGenes)
 ```
 
-    ## [1] 7095
+    ## [1] 4601
 
 According to Decide tests we have this number of DE genes (at different time stages):
 
@@ -584,7 +585,7 @@ de_genes_at_stages <- time_course_res[de_genes_rows,]
 nrow(de_genes_at_stages)
 ```
 
-    ## [1] 5683
+    ## [1] 4151
 
 We will check both numbers.
 
@@ -639,3 +640,90 @@ grid::grid.draw(temp2)
 ```
 
 ![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-44-1.png)
+
+Using age as continious
+=======================
+
+``` r
+metadata_cont_time <- metadata[,-2]
+metadata_cont_time %>% kable()
+```
+
+| samples       |  age|
+|:--------------|----:|
+| H9\_12h\_rep1 |   12|
+| H9\_12h\_rep2 |   12|
+| H9\_12h\_rep3 |   12|
+| H9\_24h\_rep1 |   24|
+| H9\_24h\_rep2 |   24|
+| H9\_24h\_rep3 |   24|
+| H9\_36h\_rep1 |   36|
+| H9\_36h\_rep2 |   36|
+| H9\_36h\_rep3 |   36|
+| H9\_72h\_rep1 |   72|
+| H9\_72h\_rep2 |   72|
+| H9\_72h\_rep3 |   72|
+| H9\_96h\_rep1 |   96|
+| H9\_96h\_rep2 |   96|
+| H9\_96h\_rep3 |   96|
+
+``` r
+designMatrix <- model.matrix(~0 + age, metadata_cont_time)
+head(designMatrix, 10) %>% kable()
+```
+
+|  age|
+|----:|
+|   12|
+|   12|
+|   12|
+|   24|
+|   24|
+|   24|
+|   36|
+|   36|
+|   36|
+|   72|
+
+``` r
+expressionFit_age <- lmFit(cleaned_log_cpm_df, designMatrix)
+expressionFitBayes_age <- eBayes(expressionFit_age)
+
+topGenesAge <- topTable(expressionFitBayes_age, number = Inf, p.value = 0.05)
+nrow(topGenesAge)
+```
+
+    ## [1] 12936
+
+``` r
+head(topGenesAge) %>% kable()
+```
+
+|        |      logFC|   AveExpr|         t|  P.Value|  adj.P.Val|         B|
+|--------|----------:|---------:|---------:|--------:|----------:|---------:|
+| STC1   |  0.0975435|  4.718096|  29.93289|        0|          0|  25.35145|
+| FGF17  |  0.0881559|  4.319202|  20.42987|        0|          0|  19.95752|
+| ERBB4  |  0.1187449|  5.551878|  20.42332|        0|          0|  19.95280|
+| COL6A3 |  0.0750285|  3.680885|  20.20303|        0|          0|  19.79337|
+| ITGA4  |  0.0814500|  4.065051|  18.79581|        0|          0|  18.72657|
+| TDRD7  |  0.0875289|  4.124570|  18.73015|        0|          0|  18.67465|
+
+``` r
+sample_genes <- rownames(topGenesAge)[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-49-1.png)
+
+``` r
+temp <- venn.diagram(list(My_TopTable = rownames(topGenesAge), Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my all DE genes (from TopTable)", category.names = c("My topTable", "Paper genes"))
+
+grid::grid.newpage()
+grid::grid.draw(temp)
+```
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-50-1.png)
