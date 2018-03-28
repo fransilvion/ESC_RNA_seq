@@ -462,4 +462,60 @@ temp <- venn.diagram(list(My_TopTable = rownames(topGenesAge), Paper_genes = pap
 grid::grid.newpage()
 grid::grid.draw(temp)
 ```
+# Finding discrepancies
+
+```{r}
+paper_de_genes <- read_excel("13059_2016_1033_MOESM4_ESM.xlsx")
+foo <- data.frame(do.call('rbind', strsplit(as.character(paper_de_genes$`most likely pattern`),'-',fixed=TRUE)))
+df <- data.frame(Gene = paper_de_genes$GeneID)
+dfx <- cbind(df, foo)
+paper_de_genes <- dfx
+colnames(paper_de_genes) <- c("Gene", "12v0", "24v12", "36v24", "72v36", "96v72")
+head(paper_de_genes) %>% kable()
+```
+```{r}
+#deleting column 12v0, because I didn't  have that comparison
+paper_de_genes <- paper_de_genes[,-2]
+
+paper_de_genes <- paper_de_genes %>%
+  filter(`24v12` != "NC" | `36v24` != "NC" | `72v36` != "NC" | `96v72` != "NC")
+dim(paper_de_genes)
+```
+```{r}
+temp2 <- venn.diagram(list(My_TopTable = stages_de_genes, Paper_genes = paper_de_genes$Gene),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my stage DE genes (from decideTests)", category.names = c("Stage DE genes", "Paper genes"))
+
+grid::grid.newpage()
+grid::grid.draw(temp2)
+```
+```{r}
+#reminder
+summary(time_course_res)
+```
+```{r}
+paper_res <- list(`24v12` = table(paper_de_genes$`24v12`), `36v24` = table(paper_de_genes$`36v24`),
+                  `72v36` = table(paper_de_genes$`72v36`), `96v72` = table(paper_de_genes$`96v72`))
+
+paper_res
+```
+```{r}
+#hits at 36v24
+head(hits2) %>% kable()
+```
+
+```{r}
+paper_up_36v24 <- paper_de_genes %>%
+  filter(`36v24` == "Up")
+nrow(paper_up_36v24)
+```
+```{r}
+#in paper but not in my research
+s <- setdiff(paper_up_36v24$Gene, hits2$gene)
+length(s)
+```
+```{r}
+#plot genes that are DE in paper at 36 to 24 but not in my results
+set.seed(123)
+sample_genes <- sample(s, 4)
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
 

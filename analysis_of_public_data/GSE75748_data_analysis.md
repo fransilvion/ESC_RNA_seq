@@ -726,4 +726,123 @@ grid::grid.newpage()
 grid::grid.draw(temp)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-50-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-50-1.png) \# Finding discrepancies
+
+``` r
+paper_de_genes <- read_excel("13059_2016_1033_MOESM4_ESM.xlsx")
+foo <- data.frame(do.call('rbind', strsplit(as.character(paper_de_genes$`most likely pattern`),'-',fixed=TRUE)))
+df <- data.frame(Gene = paper_de_genes$GeneID)
+dfx <- cbind(df, foo)
+paper_de_genes <- dfx
+colnames(paper_de_genes) <- c("Gene", "12v0", "24v12", "36v24", "72v36", "96v72")
+head(paper_de_genes) %>% kable()
+```
+
+| Gene  | 12v0 | 24v12 | 36v24 | 72v36 | 96v72 |
+|:------|:-----|:------|:------|:------|:------|
+| A2ML1 | Down | NC    | NC    | NC    | NC    |
+| AAK1  | Down | NC    | Up    | NC    | NC    |
+| AARS  | Down | NC    | NC    | NC    | NC    |
+| AARS2 | Down | Up    | NC    | NC    | NC    |
+| AASS  | Down | NC    | Up    | NC    | NC    |
+| AATF  | NC   | NC    | Up    | NC    | NC    |
+
+``` r
+#deleting column 12v0, because I didn't  have that comparison
+paper_de_genes <- paper_de_genes[,-2]
+
+paper_de_genes <- paper_de_genes %>%
+  filter(`24v12` != "NC" | `36v24` != "NC" | `72v36` != "NC" | `96v72` != "NC")
+dim(paper_de_genes)
+```
+
+    ## [1] 2149    5
+
+``` r
+temp2 <- venn.diagram(list(My_TopTable = stages_de_genes, Paper_genes = paper_de_genes$Gene),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my stage DE genes (from decideTests)", category.names = c("Stage DE genes", "Paper genes"))
+
+grid::grid.newpage()
+grid::grid.draw(temp2)
+```
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-53-1.png)
+
+``` r
+#reminder
+summary(time_course_res)
+```
+
+    ##        v24v12 v36v24 v72v36 v96v72
+    ## Down      137    294   1697    121
+    ## NotSig  14208  13902  11032  14336
+    ## Up        248    397   1864    136
+
+``` r
+paper_res <- list(`24v12` = table(paper_de_genes$`24v12`), `36v24` = table(paper_de_genes$`36v24`),
+                  `72v36` = table(paper_de_genes$`72v36`), `96v72` = table(paper_de_genes$`96v72`))
+
+paper_res
+```
+
+    ## $`24v12`
+    ## 
+    ## Down   NC   Up 
+    ##   53 1319  777 
+    ## 
+    ## $`36v24`
+    ## 
+    ## Down   NC   Up 
+    ##  328  832  989 
+    ## 
+    ## $`72v36`
+    ## 
+    ## Down   NC   Up 
+    ##  235 1683  231 
+    ## 
+    ## $`96v72`
+    ## 
+    ## Down   NC   Up 
+    ##   10 2138    1
+
+``` r
+#hits at 36v24
+head(hits2) %>% kable()
+```
+
+| gene   |  v24v12|  v36v24|  v72v36|  v96v72|
+|:-------|-------:|-------:|-------:|-------:|
+| ABHD6  |       1|       1|      -1|       0|
+| ABLIM1 |       0|       1|      -1|       0|
+| ABTB2  |       0|       1|       0|       0|
+| ACSS3  |       1|       1|       0|       0|
+| ACVRL1 |       0|       1|       1|       0|
+| ADAM12 |       0|       1|       0|       1|
+
+``` r
+paper_up_36v24 <- paper_de_genes %>%
+  filter(`36v24` == "Up")
+nrow(paper_up_36v24)
+```
+
+    ## [1] 989
+
+``` r
+#in paper but not in my research
+s <- setdiff(paper_up_36v24$Gene, hits2$gene)
+length(s)
+```
+
+    ## [1] 808
+
+``` r
+#plot genes that are DE in paper at 36 to 24 but not in my results
+set.seed(123)
+sample_genes <- sample(s, 4)
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-59-1.png)
