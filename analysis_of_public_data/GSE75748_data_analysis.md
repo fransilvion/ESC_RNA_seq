@@ -5,23 +5,6 @@ German Novakovskiy
 
 Here we analyze gene expression data from [this paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1033-x). Some analysis steps are made according to [this workflow article](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4937821/).
 
-``` r
-library(knitr)
-suppressWarnings(suppressMessages(library(tidyverse)))
-suppressWarnings(suppressMessages(library(GEOquery)))
-suppressWarnings(suppressMessages(library(data.table)))
-suppressWarnings(suppressMessages(library(reshape2)))
-suppressWarnings(suppressMessages(library(dplyr)))
-suppressWarnings(suppressMessages(library(ggplot2)))
-suppressWarnings(suppressMessages(library(cowplot)))
-suppressWarnings(suppressMessages(library(limma)))
-suppressWarnings(suppressMessages(library(tibble)))
-suppressWarnings(suppressMessages(library(RColorBrewer)))
-suppressWarnings(suppressMessages(library(edgeR)))
-suppressWarnings(suppressMessages(library(readxl)))
-suppressWarnings(suppressMessages(library(VennDiagram)))
-```
-
 Let's read our data into R (GSE75748):
 
 ``` r
@@ -59,6 +42,7 @@ show(geo_obj)
 Let's load metadata:
 
 ``` r
+#no confounding factors or batch effects (the same platform, unknown sex)
 geo_metadata <- pData(geo_obj)
 
 #due to complexity of metadata table it's more convenient to create your own (see below)
@@ -71,16 +55,68 @@ assayData has 0 features, it's not possible to load expression data from this da
 bulk_cell_type_ec <- read.csv("GSE75748_bulk_cell_type_ec.csv/GSE75748_bulk_cell_type_ec.csv", header=TRUE)
 #time course
 bulk_time_course_ec <- read.csv("GSE75748_bulk_time_course_ec.csv/GSE75748_bulk_time_course_ec.csv", header=TRUE)
+
+#single cell/cell type
+sc_cell_type <- read.csv("GSE75748_sc_time_course_ec.csv", header=TRUE)
+rownames(sc_cell_type) <- sc_cell_type$X
+sc_cell_type <- sc_cell_type[,-1]
+```
+
+We are interested in 0 time point. We have only single cell data for it. Let's extract it:
+
+``` r
+zero_cols <- colnames(sc_cell_type)
+zero_cols <- zero_cols[grepl("00h", zero_cols)]
+
+zero_expr <- sc_cell_type[,zero_cols]
+dim(zero_expr)
+```
+
+    ## [1] 19189    92
+
+There are 92 cells from 0 time point, just as authors described it.
+
+Metadata for samples of 0h:
+
+``` r
+zero_metadata <- geo_metadata %>%
+  filter(grepl("for 0 hours", title))
+dim(zero_metadata)
+```
+
+    ## [1] 92 45
+
+Let's make 3 replicas out of 92 cells (31 cells in first, 31 in second, 30 in the last - clarify this moment with Sara):
+
+``` r
+zero_first_replica <- apply(zero_expr[1:31], 1, mean) #mean or median?
+zero_second_replica <- apply(zero_expr[32:62], 1, mean) #mean or median?
+zero_third_replica <- apply(zero_expr[63:92], 1, mean) #mean or median?
+
+zero_expr_replicas <- data.frame(H9_0h_rep1 = zero_first_replica, H9_0h_rep2 = zero_second_replica,
+                                 H9_0h_rep3 = zero_third_replica)
+
+rownames(bulk_time_course_ec) <- bulk_time_course_ec$X
+bulk_time_course_ec <- bulk_time_course_ec[,-1]
+
+#delete extra rows from zero expr data frame
+delete_rows <- setdiff(rownames(zero_expr_replicas), rownames(bulk_time_course_ec))
+zero_expr_replicas <- zero_expr_replicas[!rownames(zero_expr_replicas) %in% delete_rows,]
+
+bulk_time_course_ec <- merge(zero_expr_replicas, bulk_time_course_ec, by="row.names")
+rownames(bulk_time_course_ec) <- bulk_time_course_ec$Row.names
+bulk_time_course_ec <- bulk_time_course_ec[,-1]
 ```
 
 Let's create metadata data frame:
 
 ``` r
-sample_names <- colnames(bulk_time_course_ec[-1]) #without gene name
-time_fact <- paste(c(12,24,36,72,96), sep="", 'h') #factors of time
+sample_names <- colnames(bulk_time_course_ec) #without gene name
+
+time_fact <- paste(c(0, 12,24,36,72,96), sep="", 'h') #factors of time
 time_fact <- rep(time_fact, each=3)
 
-time_int <- rep(c(12,24,36,72,96), each=3) #time as continious variable
+time_int <- rep(c(0, 12,24,36,72,96), each=3) #time as continious variable
 
 metadata <- data.frame(samples = sample_names, time = time_fact, age = time_int)
 
@@ -89,6 +125,9 @@ metadata %>% kable()
 
 | samples       | time |  age|
 |:--------------|:-----|----:|
+| H9\_0h\_rep1  | 0h   |    0|
+| H9\_0h\_rep2  | 0h   |    0|
+| H9\_0h\_rep3  | 0h   |    0|
 | H9\_12h\_rep1 | 12h  |   12|
 | H9\_12h\_rep2 | 12h  |   12|
 | H9\_12h\_rep3 | 12h  |   12|
@@ -109,10 +148,10 @@ metadata %>% kable()
 str(metadata)
 ```
 
-    ## 'data.frame':    15 obs. of  3 variables:
-    ##  $ samples: Factor w/ 15 levels "H9_12h_rep1",..: 1 2 3 4 5 6 7 8 9 10 ...
-    ##  $ time   : Factor w/ 5 levels "12h","24h","36h",..: 1 1 1 2 2 2 3 3 3 4 ...
-    ##  $ age    : num  12 12 12 24 24 24 36 36 36 72 ...
+    ## 'data.frame':    18 obs. of  3 variables:
+    ##  $ samples: Factor w/ 18 levels "H9_0h_rep1","H9_0h_rep2",..: 1 2 3 4 5 6 7 8 9 10 ...
+    ##  $ time   : Factor w/ 6 levels "0h","12h","24h",..: 1 1 1 2 2 2 3 3 3 4 ...
+    ##  $ age    : num  0 0 0 12 12 12 24 24 24 36 ...
 
 Our primary goal here is to analyze bulk\_time\_course data (each stage with the next stage, step-by-step).
 
@@ -121,8 +160,8 @@ Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (
 ``` r
 #first let's create a edgeR DGElist object
 bulk_time_course_ec <- as.matrix(bulk_time_course_ec)
-rows <- bulk_time_course_ec[,1]
-bulk_time_course_ec <- bulk_time_course_ec[,-1]
+rows <- rownames(bulk_time_course_ec)
+#bulk_time_course_ec <- bulk_time_course_ec[,-1]
 bulk_time_course_ec <- apply(bulk_time_course_ec, 2, as.double)
 rownames(bulk_time_course_ec) <- rows
 
@@ -132,9 +171,9 @@ normalized_factors_expression <- calcNormFactors(DGE_bulk_time_course_ec, method
 normalized_factors_expression$samples$norm.factors
 ```
 
-    ##  [1] 1.0390140 1.0503689 1.0471506 1.0146746 1.0177200 1.0195859 0.9802117
-    ##  [8] 0.9791931 0.9844451 0.9091888 0.9827987 0.9827599 0.9910700 1.0018154
-    ## [15] 1.0088136
+    ##  [1] 0.8407748 0.8679289 0.8020218 1.0860883 1.1036607 1.0826713 1.0464718
+    ##  [8] 1.0447273 1.0483566 1.0032216 1.0007840 1.0041439 0.9449766 1.0617792
+    ## [15] 1.0135570 1.0289140 1.0375754 1.0494886
 
 For this dataset the effect of TMM-normalisation is mild, as evident in the magnitude of the scaling factors, which are all relatively close to 1.
 
@@ -146,14 +185,14 @@ cpm_bulk_time_course_expression <- cpm(normalized_factors_expression, log = FALS
 head(cpm_bulk_time_course_expression) %>% kable()
 ```
 
-|        |  H9\_12h\_rep1|  H9\_12h\_rep2|  H9\_12h\_rep3|  H9\_24h\_rep1|  H9\_24h\_rep2|  H9\_24h\_rep3|  H9\_36h\_rep1|  H9\_36h\_rep2|  H9\_36h\_rep3|  H9\_72h\_rep1|  H9\_72h\_rep2|  H9\_72h\_rep3|  H9\_96h\_rep1|  H9\_96h\_rep2|  H9\_96h\_rep3|
-|--------|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|
-| A1BG   |      2.4918092|      0.5368073|      1.7982145|      2.0428472|       1.924645|      0.5195352|       1.614739|       2.419409|      0.8971319|      26.383980|       7.028642|     10.7367225|      5.8926452|      5.3799032|      3.0933946|
-| A1CF   |      0.0000000|      0.7515303|      0.4450581|      0.0000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|      0.0000000|      0.0000000|      0.0000000|
-| A2LD1  |      0.0000000|      0.0000000|      0.4495536|      0.5107118|       0.000000|      1.0390705|       1.076492|       0.000000|      0.0000000|       1.055359|       2.342881|      1.6105084|      0.0000000|      0.5379903|      3.6089603|
-| A2M    |      0.0000000|      0.0000000|      0.0000000|      0.0000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|      1.4731613|      0.0000000|      0.0000000|
-| A2ML1  |      0.6229523|      1.9754510|      0.1663348|      1.5832066|       2.405806|      0.0000000|       0.000000|       1.022200|      1.6686653|       0.000000|       0.000000|      0.6710452|      1.9249308|      0.5379903|      2.0622630|
-| A4GALT |      1.2459046|      1.6104220|      0.8991072|      5.6178298|       5.773934|      2.5976762|       1.614739|       2.419409|      1.3456979|       0.000000|       1.405728|      0.0000000|      0.4910538|      0.0000000|      0.5155658|
+|        |  H9\_0h\_rep1|  H9\_0h\_rep2|  H9\_0h\_rep3|  H9\_12h\_rep1|  H9\_12h\_rep2|  H9\_12h\_rep3|  H9\_24h\_rep1|  H9\_24h\_rep2|  H9\_24h\_rep3|  H9\_36h\_rep1|  H9\_36h\_rep2|  H9\_36h\_rep3|  H9\_72h\_rep1|  H9\_72h\_rep2|  H9\_72h\_rep3|  H9\_96h\_rep1|  H9\_96h\_rep2|  H9\_96h\_rep3|
+|--------|-------------:|-------------:|-------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|
+| A1BG   |     2.3924843|     1.5136629|     2.1598709|      2.3838068|      0.5108868|      1.7392179|      1.9807749|       1.874891|      0.5052773|       1.577703|       2.367213|      0.8795324|      25.384775|       6.505815|     10.4104853|      5.6759111|      5.1944848|       2.973504|
+| A1CF   |     0.9370564|     1.5714039|     1.0695924|      0.0000000|      0.7152415|      0.4304564|      0.0000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|      0.0000000|      0.0000000|       0.000000|
+| A2LD1  |     0.1139278|     0.0000000|     0.2178123|      0.0000000|      0.0000000|      0.4348045|      0.4951937|       0.000000|      1.0105547|       1.051802|       0.000000|      0.0000000|       1.015391|       2.168605|      1.5615728|      0.0000000|      0.5194485|       3.469088|
+| A2M    |     0.0284820|     0.1813856|     0.7802914|      0.0000000|      0.0000000|      0.0000000|      0.0000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|       0.000000|       0.000000|      0.0000000|      1.4189778|      0.0000000|       0.000000|
+| A2ML1  |     5.9154175|     3.4058170|     2.9943112|      0.5959517|      1.8800635|      0.1608777|      1.5351006|       2.343613|      0.0000000|       0.000000|       1.000147|      1.6359303|       0.000000|       0.000000|      0.6506553|      1.8541309|      0.5194485|       1.982336|
+| A4GALT |     0.0569639|     0.0604619|     0.0304207|      1.1919034|      1.5326605|      0.8696089|      5.4471311|       5.624671|      2.5263867|       1.577703|       2.367213|      1.3192986|       0.000000|       1.301163|      0.0000000|      0.4729926|      0.0000000|       0.495584|
 
 Now let's do some sanity check: let's see how gene expression is distributed across different samples in different time points:
 
@@ -171,7 +210,7 @@ meltedBultTimeCourseEc %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-10-1.png) Let's look at density plots:
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-13-1.png) Let's look at density plots:
 
 ``` r
 meltedBultTimeCourseEc %>% 
@@ -180,7 +219,7 @@ meltedBultTimeCourseEc %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-11-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-14-1.png)
 
 We can look at the variance and means across all samples to see, how bad is the situation:
 
@@ -199,14 +238,14 @@ head(df)
 ```
 
     ##       Samples Variance     Mean
-    ## 1 H9_12h_rep1 31374.48 50.39802
-    ## 2 H9_12h_rep2 28940.27 49.85320
-    ## 3 H9_12h_rep3 30429.89 50.00641
-    ## 4 H9_24h_rep1 32471.56 51.60694
-    ## 5 H9_24h_rep2 32293.80 51.45251
-    ## 6 H9_24h_rep3 32093.72 51.35834
+    ## 1  H9_0h_rep1 83862.34 62.28094
+    ## 2  H9_0h_rep2 70616.02 60.33241
+    ## 3  H9_0h_rep3 86487.00 65.29030
+    ## 4 H9_12h_rep1 28713.69 48.21362
+    ## 5 H9_12h_rep2 26212.90 47.44596
+    ## 6 H9_12h_rep3 28465.93 48.36578
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-13-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-16-1.png)
 
 We can see that variance and means are both not the same at all for different samples (especially for 72 hours samples). Let's look at distribution of values:
 
@@ -218,16 +257,16 @@ hist(data, main="GSE75748", xlim = c(0,1500), xlab = "Expression",
      ylab = "Frequency", breaks = 300)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-14-1.png) Let's try a log transformation here:
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-17-1.png) Let's try a log transformation here:
 
 ``` r
 hist(log2(data + 0.25), main="GSE75748 - log2 transformed", xlab = "Expression",
      ylab = "Frequency")
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-15-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-18-1.png)
 
-All datasets will include a mix of genes that are expressed and those that are not expressed. Whilst it is of interest to examine genes that are expressed in one condition but not in another, some genes are unexpressed throughout all samples. Let's check how many genes have zero expression across all 15 samples (in time series data):
+All datasets will include a mix of genes that are expressed and those that are not expressed. Whilst it is of interest to examine genes that are expressed in one condition but not in another, some genes are unexpressed throughout all samples. Let's check how many genes have zero expression across all 18 samples (in time series data):
 
 ``` r
 #changing the original data frame into log2
@@ -239,13 +278,13 @@ table(rowSums(log_cpm_df[,-1]==0)==15)
 
     ## 
     ## FALSE  TRUE 
-    ## 16172  2925
+    ## 18604   493
 
-We see that more than 18% of genes don't have any expression across all samples. Let's just delete them:
+We see that more than 2% of genes don't have any expression across all samples. Let's just delete them:
 
 ``` r
-#let's delete those genes that have less than 3 samples without zero expression
-keep.exprs <- rowSums(log_cpm_df[,-1] > 0) > 3
+#let's delete those genes that have less than 6 samples without zero expression
+keep.exprs <- rowSums(log_cpm_df[,-1] > 0) > 6
 cleaned_log_cpm_df <- log_cpm_df[keep.exprs,]
 ```
 
@@ -255,7 +294,7 @@ The number of remained genes:
 nrow(cleaned_log_cpm_df)
 ```
 
-    ## [1] 14593
+    ## [1] 14253
 
 ``` r
 log_clean_data <- as.matrix(cleaned_log_cpm_df[,-1])
@@ -264,7 +303,7 @@ hist(log_clean_data, main="cleaned GSE75748 - log2 transformed", xlab = "Express
      ylab = "Frequency")
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-19-1.png) Let's build boxplots and explore the data:
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-22-1.png) Let's build boxplots and explore the data:
 
 ``` r
 meltedLogedBultTimeCourseEc <- melt(cleaned_log_cpm_df, id='gene')
@@ -275,7 +314,7 @@ meltedLogedBultTimeCourseEc %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-20-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-23-1.png)
 
 Looks much better now!
 
@@ -283,9 +322,9 @@ Looks much better now!
 plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-21-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-24-1.png)
 
-It's clear that time ponts 12h, 24h and 36h are well separated from each other and 72h with 96h, however the last group (72 and 96) is clustered closer together, thus we don't expect to see much DE genes in these groups.
+It's clear that time ponts 0h, 12h, 24h and 36h are well (mostly) separated from each other and 72h with 96h, however the last group (72 and 96) is clustered closer together, thus we don't expect to see much DE genes in these groups.
 
 Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
 
@@ -296,6 +335,9 @@ metadata_time %>% kable()
 
 | samples       | time |
 |:--------------|:-----|
+| H9\_0h\_rep1  | 0h   |
+| H9\_0h\_rep2  | 0h   |
+| H9\_0h\_rep3  | 0h   |
 | H9\_12h\_rep1 | 12h  |
 | H9\_12h\_rep2 | 12h  |
 | H9\_12h\_rep3 | 12h  |
@@ -317,18 +359,18 @@ designMatrix <- model.matrix(~0 + time, metadata_time)
 head(designMatrix, 10) %>% kable()
 ```
 
-|  time12h|  time24h|  time36h|  time72h|  time96h|
-|--------:|--------:|--------:|--------:|--------:|
-|        1|        0|        0|        0|        0|
-|        1|        0|        0|        0|        0|
-|        1|        0|        0|        0|        0|
-|        0|        1|        0|        0|        0|
-|        0|        1|        0|        0|        0|
-|        0|        1|        0|        0|        0|
-|        0|        0|        1|        0|        0|
-|        0|        0|        1|        0|        0|
-|        0|        0|        1|        0|        0|
-|        0|        0|        0|        1|        0|
+|  time0h|  time12h|  time24h|  time36h|  time72h|  time96h|
+|-------:|--------:|--------:|--------:|--------:|--------:|
+|       1|        0|        0|        0|        0|        0|
+|       1|        0|        0|        0|        0|        0|
+|       1|        0|        0|        0|        0|        0|
+|       0|        1|        0|        0|        0|        0|
+|       0|        1|        0|        0|        0|        0|
+|       0|        1|        0|        0|        0|        0|
+|       0|        0|        1|        0|        0|        0|
+|       0|        0|        1|        0|        0|        0|
+|       0|        0|        1|        0|        0|        0|
+|       0|        0|        0|        1|        0|        0|
 
 ``` r
 rownames(cleaned_log_cpm_df) <- cleaned_log_cpm_df$gene
@@ -336,6 +378,7 @@ cleaned_log_cpm_df <- cleaned_log_cpm_df[,-1]
 
 # construct the contrast matrix
 contrastMatrix <- makeContrasts(
+  v12v0 = time12h - time0h,
   v24v12 = time24h - time12h,
   v36v24 = time36h - time24h,
   v72v36 = time72h - time36h,
@@ -346,13 +389,14 @@ contrastMatrix <- makeContrasts(
 contrastMatrix %>% kable()
 ```
 
-|         |  v24v12|  v36v24|  v72v36|  v96v72|
-|---------|-------:|-------:|-------:|-------:|
-| time12h |      -1|       0|       0|       0|
-| time24h |       1|      -1|       0|       0|
-| time36h |       0|       1|      -1|       0|
-| time72h |       0|       0|       1|      -1|
-| time96h |       0|       0|       0|       1|
+|         |  v12v0|  v24v12|  v36v24|  v72v36|  v96v72|
+|---------|------:|-------:|-------:|-------:|-------:|
+| time0h  |     -1|       0|       0|       0|       0|
+| time12h |      1|      -1|       0|       0|       0|
+| time24h |      0|       1|      -1|       0|       0|
+| time36h |      0|       0|       1|      -1|       0|
+| time72h |      0|       0|       0|       1|      -1|
+| time96h |      0|       0|       0|       0|       1|
 
 ``` r
 # keep the fit around as we will need to it for looking at other contrasts later 
@@ -369,18 +413,18 @@ contrastGenes <- topTable(contrastFitEb)
 contrastGenes %>% kable()
 ```
 
-|         |      v24v12|      v36v24|      v72v36|      v96v72|   AveExpr|         F|  P.Value|  adj.P.Val|
-|---------|-----------:|-----------:|-----------:|-----------:|---------:|---------:|--------:|----------:|
-| GRM4    |   1.1400007|  -2.4363158|  -4.1142524|   0.0000000|  3.215078|  885.5448|        0|          0|
-| HTRA1   |  -0.7438591|  -0.2711237|   6.6456062|  -0.0029534|  5.437368|  681.7934|        0|          0|
-| CRHBP   |  -0.4600122|   1.5381106|   6.9280273|   1.1196407|  4.400127|  591.7846|        0|          0|
-| COLEC12 |   4.3368289|   2.1927176|   0.8764917|  -0.3848073|  6.404091|  587.1453|        0|          0|
-| GYPE    |   0.3979911|  -0.1908956|   6.6485918|   0.2202076|  2.907334|  562.0698|        0|          0|
-| RHOBTB3 |   1.3816226|   2.2069855|   2.7176436|   0.1314005|  8.679175|  448.4117|        0|          0|
-| RSPO3   |   3.8981163|   2.1358603|   0.4757521|   0.0751312|  4.605336|  397.2745|        0|          0|
-| STC1    |   0.8308211|   0.6043747|   4.4336414|   1.7403550|  4.718096|  397.2286|        0|          0|
-| CYP26A1 |   1.9429306|   1.3556967|   4.0963478|   0.5445900|  7.075719|  396.3116|        0|          0|
-| RSPO2   |  -0.1867722|  -0.1984095|   6.9000464|  -0.8453999|  2.707657|  386.5942|        0|          0|
+|          |       v12v0|      v24v12|      v36v24|      v72v36|      v96v72|   AveExpr|         F|  P.Value|  adj.P.Val|
+|----------|-----------:|-----------:|-----------:|-----------:|-----------:|---------:|---------:|--------:|----------:|
+| WLS      |   5.5097712|   2.2226425|   0.1015690|   0.6493370|  -0.0698040|  6.470881|  728.8645|        0|          0|
+| EOMES    |   7.7607257|   0.6710005|   0.1738208|   0.7428444|  -0.2371172|  7.277305|  722.4102|        0|          0|
+| HTRA1    |   2.1249287|  -0.7227814|  -0.2621114|   6.6008515|   0.0136977|  4.717192|  698.1158|        0|          0|
+| SERPINE2 |   3.4829995|   2.4671028|   0.5880755|   0.0990749|  -0.1531803|  8.927081|  554.7462|        0|          0|
+| RSPO3    |   0.0000000|   3.8600793|   2.1432147|   0.4366285|   0.0916153|  3.805806|  529.5138|        0|          0|
+| GRM4     |   2.1407762|   1.1592923|  -2.4252950|  -4.0849013|   0.0000000|  3.192688|  525.7565|        0|          0|
+| COLEC12  |   0.7474359|   4.3333230|   2.2016779|   0.8371178|  -0.3681233|  5.391701|  517.8517|        0|          0|
+| CHL1     |   1.4038373|   3.0961977|   1.5858670|   1.5314256|   0.2170805|  4.573585|  491.9715|        0|          0|
+| GYPE     |  -1.4337399|   0.3885252|  -0.1853048|   6.5825467|   0.2366412|  2.638943|  485.5640|        0|          0|
+| MMP14    |   4.5407743|   1.2573842|   1.6117936|   0.9539936|  -0.8307630|  5.847551|  483.9803|        0|          0|
 
 ``` r
 cutoff <- 5e-02 #0.05 p value
@@ -389,32 +433,32 @@ time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 1)
 summary(time_course_res)
 ```
 
-    ##        v24v12 v36v24 v72v36 v96v72
-    ## Down      137    294   1697    121
-    ## NotSig  14208  13902  11032  14336
-    ## Up        248    397   1864    136
+    ##        v12v0 v24v12 v36v24 v72v36 v96v72
+    ## Down    2894    130    286   1818    109
+    ## NotSig  8244  13893  13581  10681  14012
+    ## Up      3115    230    386   1754    132
 
 We see there are different number of genes up and down regulated at each stage.
 
 Here are the genes that upregulated from 24 hours to 36 hours.
 
 ``` r
-hits2 <- time_course_res %>% 
+hits3 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v36v24 > 0)
 
-head(hits2) %>% kable()
+head(hits3) %>% kable()
 ```
 
-| gene   |  v24v12|  v36v24|  v72v36|  v96v72|
-|:-------|-------:|-------:|-------:|-------:|
-| ABHD6  |       1|       1|      -1|       0|
-| ABLIM1 |       0|       1|      -1|       0|
-| ABTB2  |       0|       1|       0|       0|
-| ACSS3  |       1|       1|       0|       0|
-| ACVRL1 |       0|       1|       1|       0|
-| ADAM12 |       0|       1|       0|       1|
+| gene   |  v12v0|  v24v12|  v36v24|  v72v36|  v96v72|
+|:-------|------:|-------:|-------:|-------:|-------:|
+| ABHD6  |      0|       1|       1|      -1|       0|
+| ABLIM1 |      0|       0|       1|      -1|       0|
+| ABTB2  |      0|       0|       1|       0|       0|
+| ACE2   |      0|       0|       1|       1|       0|
+| ACSS3  |      0|       1|       1|       0|       0|
+| ACVRL1 |      0|       0|       1|       1|       0|
 
 ``` r
 #function for plotting genes
@@ -441,61 +485,33 @@ plotGenes <- function(genes, expressionMatrix, metadata) {
 Let's plot 4 random genes that are upregulated at each stage.
 
 ``` r
-#stage 24v12
 hits1 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(v12v0 > 0)
+
+#stage 24v12
+hits2 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v24v12 > 0)
 
 #stage 72v36
-hits3 <- time_course_res %>% 
+hits4 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v72v36 > 0)
 
 #stage 96v72
-hits4 <- time_course_res %>% 
+hits5 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v96v72 > 0)
 ```
 
 ``` r
-sample_genes_24v12 <- sample(hits1$gene,4)
-plotGenes(sample_genes_24v12, cleaned_log_cpm_df, metadata)
-```
-
-    ## Using gene as id variables
-
-    ## Joining, by = "samples"
-
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-30-1.png)
-
-``` r
-sample_genes_36v24 <- sample(hits2$gene,4)
-plotGenes(sample_genes_36v24, cleaned_log_cpm_df, metadata)
-```
-
-    ## Using gene as id variables
-
-    ## Joining, by = "samples"
-
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-31-1.png)
-
-``` r
-sample_genes_72v36 <- sample(hits3$gene,4)
-plotGenes(sample_genes_72v36, cleaned_log_cpm_df, metadata)
-```
-
-    ## Using gene as id variables
-
-    ## Joining, by = "samples"
-
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-32-1.png)
-
-``` r
-sample_genes_96v72 <- sample(hits4$gene,4)
-plotGenes(sample_genes_96v72, cleaned_log_cpm_df, metadata)
+sample_genes_12v0 <- sample(hits1$gene,4)
+plotGenes(sample_genes_12v0, cleaned_log_cpm_df, metadata)
 ```
 
     ## Using gene as id variables
@@ -503,6 +519,50 @@ plotGenes(sample_genes_96v72, cleaned_log_cpm_df, metadata)
     ## Joining, by = "samples"
 
 ![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-33-1.png)
+
+``` r
+sample_genes_24v12 <- sample(hits2$gene,4)
+plotGenes(sample_genes_24v12, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-34-1.png)
+
+``` r
+sample_genes_36v24 <- sample(hits3$gene,4)
+plotGenes(sample_genes_36v24, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-35-1.png)
+
+``` r
+sample_genes_72v36 <- sample(hits4$gene,4)
+plotGenes(sample_genes_72v36, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-36-1.png)
+
+``` r
+sample_genes_96v72 <- sample(hits5$gene,4)
+plotGenes(sample_genes_96v72, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-37-1.png)
 
 let's build those genes that according to the paper are DE in 24v12 transition:
 
@@ -515,7 +575,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-34-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-38-1.png)
 
 COMMENTS
 --------
@@ -535,7 +595,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-35-1.png) Let's look at the expression of pluripotency genes POU5F1, NANOG, and SOX2:
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-39-1.png) Let's look at the expression of pluripotency genes POU5F1, NANOG, and SOX2:
 
 ``` r
 sample_genes <- c("POU5F1", "NANOG", "SOX2")
@@ -546,7 +606,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-36-1.png) Their expression is going down, just as expected.
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-40-1.png) Their expression is going down, just as expected.
 
 Now let's look at key DE markers CXCR4, SOX17, HNF1B, KIT, and KRT19:
 
@@ -560,7 +620,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-37-1.png) It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19 and HNF1B did not change so much, but KRT19 remained highly expressed, while HNF1B remained to be down-regulated.
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-41-1.png) It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19 and HNF1B did not change so much, but KRT19 remained highly expressed, while HNF1B remained to be down-regulated.
 
 Comparisons with the paper
 ==========================
@@ -575,7 +635,7 @@ allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
 nrow(allDEGenes)
 ```
 
-    ## [1] 4601
+    ## [1] 8550
 
 According to Decide tests we have this number of DE genes (at different time stages):
 
@@ -585,7 +645,7 @@ de_genes_at_stages <- time_course_res[de_genes_rows,]
 nrow(de_genes_at_stages)
 ```
 
-    ## [1] 4151
+    ## [1] 8147
 
 We will check both numbers.
 
@@ -630,7 +690,7 @@ grid::grid.newpage()
 grid::grid.draw(temp)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-43-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-47-1.png)
 
 ``` r
 temp2 <- venn.diagram(list(My_TopTable = stages_de_genes, Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my stage DE genes (from decideTests)", category.names = c("Stage DE genes", "Paper genes"))
@@ -639,7 +699,52 @@ grid::grid.newpage()
 grid::grid.draw(temp2)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-44-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-48-1.png)
+
+Performing analysis without contrast matrix, using 0 as a reference
+===================================================================
+
+``` r
+#0 hours as a reference
+designMatrixReference <- model.matrix(~time, metadata_time)
+head(designMatrixReference, 10) %>% kable()
+```
+
+|  (Intercept)|  time12h|  time24h|  time36h|  time72h|  time96h|
+|------------:|--------:|--------:|--------:|--------:|--------:|
+|            1|        0|        0|        0|        0|        0|
+|            1|        0|        0|        0|        0|        0|
+|            1|        0|        0|        0|        0|        0|
+|            1|        1|        0|        0|        0|        0|
+|            1|        1|        0|        0|        0|        0|
+|            1|        1|        0|        0|        0|        0|
+|            1|        0|        1|        0|        0|        0|
+|            1|        0|        1|        0|        0|        0|
+|            1|        0|        1|        0|        0|        0|
+|            1|        0|        0|        1|        0|        0|
+
+``` r
+# keep the fit around as we will need to it for looking at other contrasts later 
+time_course_Fit_Reference <- lmFit(cleaned_log_cpm_df, designMatrixReference)
+
+# apply eBayes() for moderated statistics
+time_course_Fit_Reference_Ebayes <- eBayes(time_course_Fit_Reference)
+
+genesReference <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
+
+dim(genesReference)
+```
+
+    ## [1] 8550    9
+
+``` r
+all_de_genes_ref <- rownames(genesReference)
+all(all_de_genes == all_de_genes_ref)
+```
+
+    ## [1] TRUE
+
+We are getting the same result as a covariat matrix top table for all genes.
 
 Using age as continious
 =======================
@@ -651,6 +756,9 @@ metadata_cont_time %>% kable()
 
 | samples       |  age|
 |:--------------|----:|
+| H9\_0h\_rep1  |    0|
+| H9\_0h\_rep2  |    0|
+| H9\_0h\_rep3  |    0|
 | H9\_12h\_rep1 |   12|
 | H9\_12h\_rep2 |   12|
 | H9\_12h\_rep3 |   12|
@@ -668,45 +776,50 @@ metadata_cont_time %>% kable()
 | H9\_96h\_rep3 |   96|
 
 ``` r
-designMatrix <- model.matrix(~0 + age, metadata_cont_time)
+designMatrix <- model.matrix(~age, metadata_cont_time)
 head(designMatrix, 10) %>% kable()
 ```
 
-|  age|
-|----:|
-|   12|
-|   12|
-|   12|
-|   24|
-|   24|
-|   24|
-|   36|
-|   36|
-|   36|
-|   72|
+|  (Intercept)|  age|
+|------------:|----:|
+|            1|    0|
+|            1|    0|
+|            1|    0|
+|            1|   12|
+|            1|   12|
+|            1|   12|
+|            1|   24|
+|            1|   24|
+|            1|   24|
+|            1|   36|
 
 ``` r
 expressionFit_age <- lmFit(cleaned_log_cpm_df, designMatrix)
 expressionFitBayes_age <- eBayes(expressionFit_age)
 
-topGenesAge <- topTable(expressionFitBayes_age, number = Inf, p.value = 0.05)
+topGenesAge <- topTable(expressionFitBayes_age, number = Inf, p.value = 0.05)#, lfc = 1)
+```
+
+    ## Removing intercept from test coefficients
+
+``` r
 nrow(topGenesAge)
 ```
 
-    ## [1] 12936
+    ## [1] 5883
 
 ``` r
 head(topGenesAge) %>% kable()
 ```
 
-|        |      logFC|   AveExpr|         t|  P.Value|  adj.P.Val|         B|
-|--------|----------:|---------:|---------:|--------:|----------:|---------:|
-| STC1   |  0.0975435|  4.718096|  29.93289|        0|          0|  25.35145|
-| FGF17  |  0.0881559|  4.319202|  20.42987|        0|          0|  19.95752|
-| ERBB4  |  0.1187449|  5.551878|  20.42332|        0|          0|  19.95280|
-| COL6A3 |  0.0750285|  3.680885|  20.20303|        0|          0|  19.79337|
-| ITGA4  |  0.0814500|  4.065051|  18.79581|        0|          0|  18.72657|
-| TDRD7  |  0.0875289|  4.124570|  18.73015|        0|          0|  18.67465|
+|         |       logFC|   AveExpr|          t|  P.Value|  adj.P.Val|         B|
+|---------|-----------:|---------:|----------:|--------:|----------:|---------:|
+| ESRP1   |  -0.0814917|  5.122189|  -21.86353|        0|          0|  25.21287|
+| CYP26A1 |   0.0975024|  6.220920|   21.03487|        0|          0|  24.47324|
+| AP1M2   |  -0.0698415|  3.469314|  -19.01716|        0|          0|  22.54633|
+| COL3A1  |   0.1112684|  3.275292|   18.58963|        0|          0|  22.11294|
+| CRABP1  |  -0.0585046|  3.298066|  -18.18460|        0|          0|  21.69361|
+| CDH3    |  -0.0545053|  4.284645|  -18.09555|        0|          0|  21.60023|
 
 ``` r
 sample_genes <- rownames(topGenesAge)[1:6]
@@ -717,7 +830,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-49-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-56-1.png)
 
 ``` r
 temp <- venn.diagram(list(My_TopTable = rownames(topGenesAge), Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my all DE genes (from TopTable)", category.names = c("My topTable", "Paper genes"))
@@ -726,7 +839,7 @@ grid::grid.newpage()
 grid::grid.draw(temp)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-50-1.png) \# Finding discrepancies
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-57-1.png) \# Finding discrepancies
 
 ``` r
 paper_de_genes <- read_excel("13059_2016_1033_MOESM4_ESM.xlsx")
@@ -749,14 +862,14 @@ head(paper_de_genes) %>% kable()
 
 ``` r
 #deleting column 12v0, because I didn't  have that comparison
-paper_de_genes <- paper_de_genes[,-2]
+#paper_de_genes <- paper_de_genes[,-2]
 
 paper_de_genes <- paper_de_genes %>%
-  filter(`24v12` != "NC" | `36v24` != "NC" | `72v36` != "NC" | `96v72` != "NC")
+  filter('12v0' != "NC" | `24v12` != "NC" | `36v24` != "NC" | `72v36` != "NC" | `96v72` != "NC")
 dim(paper_de_genes)
 ```
 
-    ## [1] 2149    5
+    ## [1] 3247    6
 
 ``` r
 temp2 <- venn.diagram(list(My_TopTable = stages_de_genes, Paper_genes = paper_de_genes$Gene),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my stage DE genes (from decideTests)", category.names = c("Stage DE genes", "Paper genes"))
@@ -765,58 +878,63 @@ grid::grid.newpage()
 grid::grid.draw(temp2)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-53-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-60-1.png)
 
 ``` r
 #reminder
 summary(time_course_res)
 ```
 
-    ##        v24v12 v36v24 v72v36 v96v72
-    ## Down      137    294   1697    121
-    ## NotSig  14208  13902  11032  14336
-    ## Up        248    397   1864    136
+    ##        v12v0 v24v12 v36v24 v72v36 v96v72
+    ## Down    2894    130    286   1818    109
+    ## NotSig  8244  13893  13581  10681  14012
+    ## Up      3115    230    386   1754    132
 
 ``` r
-paper_res <- list(`24v12` = table(paper_de_genes$`24v12`), `36v24` = table(paper_de_genes$`36v24`),
+paper_res <- list(`12v0` = table(paper_de_genes$`12v0`), `24v12` = table(paper_de_genes$`24v12`), `36v24` = table(paper_de_genes$`36v24`),
                   `72v36` = table(paper_de_genes$`72v36`), `96v72` = table(paper_de_genes$`96v72`))
 
 paper_res
 ```
 
+    ## $`12v0`
+    ## 
+    ## Down   NC   Up 
+    ## 2051 1023  173 
+    ## 
     ## $`24v12`
     ## 
     ## Down   NC   Up 
-    ##   53 1319  777 
+    ##   53 2417  777 
     ## 
     ## $`36v24`
     ## 
     ## Down   NC   Up 
-    ##  328  832  989 
+    ##  328 1930  989 
     ## 
     ## $`72v36`
     ## 
     ## Down   NC   Up 
-    ##  235 1683  231 
+    ##  235 2781  231 
     ## 
     ## $`96v72`
     ## 
     ## Down   NC   Up 
-    ##   10 2138    1
+    ##   10 3236    1
 
 ``` r
 #hits at 36v24
-head(hits2) %>% kable()
+head(hits3) %>% kable()
 ```
 
-| gene   |  v24v12|  v36v24|  v72v36|  v96v72|
-|:-------|-------:|-------:|-------:|-------:|
-| ABHD6  |       1|       1|      -1|       0|
-| ABLIM1 |       0|       1|      -1|       0|
-| ABTB2  |       0|       1|       0|       0|
-| ACSS3  |       1|       1|       0|       0|
-| ACVRL1 |       0|       1|       1|       0|
-| ADAM12 |       0|       1|       0|       1|
+| gene   |  v12v0|  v24v12|  v36v24|  v72v36|  v96v72|
+|:-------|------:|-------:|-------:|-------:|-------:|
+| ABHD6  |      0|       1|       1|      -1|       0|
+| ABLIM1 |      0|       0|       1|      -1|       0|
+| ABTB2  |      0|       0|       1|       0|       0|
+| ACE2   |      0|       0|       1|       1|       0|
+| ACSS3  |      0|       1|       1|       0|       0|
+| ACVRL1 |      0|       0|       1|       1|       0|
 
 ``` r
 paper_up_36v24 <- paper_de_genes %>%
@@ -832,7 +950,7 @@ s <- setdiff(paper_up_36v24$Gene, hits2$gene)
 length(s)
 ```
 
-    ## [1] 808
+    ## [1] 941
 
 ``` r
 #plot genes that are DE in paper at 36 to 24 but not in my results
@@ -845,4 +963,4 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-59-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-66-1.png)

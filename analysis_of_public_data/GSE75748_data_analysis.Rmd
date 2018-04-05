@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Here we analyze gene expression data from [this paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1033-x). Some analysis steps are made according to [this workflow article](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4937821/).
 
-```{r}
+```{r, echo=FALSE}
 library(knitr)
 suppressWarnings(suppressMessages(library(tidyverse)))
 suppressWarnings(suppressMessages(library(GEOquery)))
@@ -50,6 +50,7 @@ show(geo_obj)
 ```
 Let's load metadata:
 ```{r}
+#no confounding factors or batch effects (the same platform, unknown sex)
 geo_metadata <- pData(geo_obj)
 
 #due to complexity of metadata table it's more convenient to create your own (see below)
@@ -61,15 +62,61 @@ assayData has 0 features, it's not possible to load expression data from this da
 bulk_cell_type_ec <- read.csv("GSE75748_bulk_cell_type_ec.csv/GSE75748_bulk_cell_type_ec.csv", header=TRUE)
 #time course
 bulk_time_course_ec <- read.csv("GSE75748_bulk_time_course_ec.csv/GSE75748_bulk_time_course_ec.csv", header=TRUE)
+
+#single cell/cell type
+sc_cell_type <- read.csv("GSE75748_sc_time_course_ec.csv", header=TRUE)
+rownames(sc_cell_type) <- sc_cell_type$X
+sc_cell_type <- sc_cell_type[,-1]
 ```
+
+We are interested in 0 time point. We have only single cell data for it. Let's extract it:
+```{r}
+zero_cols <- colnames(sc_cell_type)
+zero_cols <- zero_cols[grepl("00h", zero_cols)]
+
+zero_expr <- sc_cell_type[,zero_cols]
+dim(zero_expr)
+```
+
+There are 92 cells from 0 time point, just as authors described it. 
+
+Metadata for samples of 0h:
+```{r}
+zero_metadata <- geo_metadata %>%
+  filter(grepl("for 0 hours", title))
+dim(zero_metadata)
+```
+
+Let's make 3 replicas out of 92 cells (31 cells in first, 31 in second, 30 in the last - clarify this moment with Sara):
+```{r}
+zero_first_replica <- apply(zero_expr[1:31], 1, mean) #mean or median?
+zero_second_replica <- apply(zero_expr[32:62], 1, mean) #mean or median?
+zero_third_replica <- apply(zero_expr[63:92], 1, mean) #mean or median?
+
+zero_expr_replicas <- data.frame(H9_0h_rep1 = zero_first_replica, H9_0h_rep2 = zero_second_replica,
+                                 H9_0h_rep3 = zero_third_replica)
+
+rownames(bulk_time_course_ec) <- bulk_time_course_ec$X
+bulk_time_course_ec <- bulk_time_course_ec[,-1]
+
+#delete extra rows from zero expr data frame
+delete_rows <- setdiff(rownames(zero_expr_replicas), rownames(bulk_time_course_ec))
+zero_expr_replicas <- zero_expr_replicas[!rownames(zero_expr_replicas) %in% delete_rows,]
+
+bulk_time_course_ec <- merge(zero_expr_replicas, bulk_time_course_ec, by="row.names")
+rownames(bulk_time_course_ec) <- bulk_time_course_ec$Row.names
+bulk_time_course_ec <- bulk_time_course_ec[,-1]
+```
+
 
 Let's create metadata data frame:
 ```{r}
-sample_names <- colnames(bulk_time_course_ec[-1]) #without gene name
-time_fact <- paste(c(12,24,36,72,96), sep="", 'h') #factors of time
+sample_names <- colnames(bulk_time_course_ec) #without gene name
+
+time_fact <- paste(c(0, 12,24,36,72,96), sep="", 'h') #factors of time
 time_fact <- rep(time_fact, each=3)
 
-time_int <- rep(c(12,24,36,72,96), each=3) #time as continious variable
+time_int <- rep(c(0, 12,24,36,72,96), each=3) #time as continious variable
 
 metadata <- data.frame(samples = sample_names, time = time_fact, age = time_int)
 
@@ -86,8 +133,8 @@ Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (
 ```{r}
 #first let's create a edgeR DGElist object
 bulk_time_course_ec <- as.matrix(bulk_time_course_ec)
-rows <- bulk_time_course_ec[,1]
-bulk_time_course_ec <- bulk_time_course_ec[,-1]
+rows <- rownames(bulk_time_course_ec)
+#bulk_time_course_ec <- bulk_time_course_ec[,-1]
 bulk_time_course_ec <- apply(bulk_time_course_ec, 2, as.double)
 rownames(bulk_time_course_ec) <- rows
 
@@ -179,7 +226,7 @@ hist(log2(data + 0.25), main="GSE75748 - log2 transformed", xlab = "Expression",
 
 All datasets will include a mix of genes that are expressed and those that are not expressed. Whilst it is of interest
 to examine genes that are expressed in one condition but not in another, some genes are unexpressed throughout all
-samples. Let's check how many genes have zero expression across all 15 samples (in time series data):
+samples. Let's check how many genes have zero expression across all 18 samples (in time series data):
 
 ```{r}
 #changing the original data frame into log2
@@ -188,10 +235,10 @@ log_cpm_df[,2 : ncol(cpm_df)] <- log2(log_cpm_df[,2:ncol(cpm_df)] + 1)
 
 table(rowSums(log_cpm_df[,-1]==0)==15)
 ```
-We see that more than 18% of genes don't have any expression across all samples. Let's just delete them:
+We see that more than 2% of genes don't have any expression across all samples. Let's just delete them:
 ```{r}
-#let's delete those genes that have less than 3 samples without zero expression
-keep.exprs <- rowSums(log_cpm_df[,-1] > 0) > 3
+#let's delete those genes that have less than 6 samples without zero expression
+keep.exprs <- rowSums(log_cpm_df[,-1] > 0) > 6
 cleaned_log_cpm_df <- log_cpm_df[keep.exprs,]
 ```
 
@@ -222,7 +269,7 @@ Looks much better now!
 plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
 ```
 
-It's clear that time ponts 12h, 24h and 36h are well separated from each other and 72h with 96h, however the last group (72 and 96) is clustered closer together, thus we don't expect to see much DE genes in these groups.
+It's clear that time ponts 0h, 12h, 24h and 36h are well (mostly) separated from each other and 72h with 96h, however the last group (72 and 96) is clustered closer together, thus we don't expect to see much DE genes in these groups.
 
 Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
 ```{r}
@@ -240,6 +287,7 @@ cleaned_log_cpm_df <- cleaned_log_cpm_df[,-1]
 
 # construct the contrast matrix
 contrastMatrix <- makeContrasts(
+  v12v0 = time12h - time0h,
   v24v12 = time24h - time12h,
   v36v24 = time36h - time24h,
   v72v36 = time72h - time36h,
@@ -276,12 +324,12 @@ We see there are different number of genes up and down regulated at each stage.
 Here are the genes that upregulated from 24 hours to 36 hours.
 
 ```{r}
-hits2 <- time_course_res %>% 
+hits3 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v36v24 > 0)
 
-head(hits2) %>% kable()
+head(hits3) %>% kable()
 ```
 
 ```{r}
@@ -310,41 +358,51 @@ plotGenes <- function(genes, expressionMatrix, metadata) {
 Let's plot 4 random genes that are upregulated at each stage.
 
 ```{r}
-#stage 24v12
 hits1 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(v12v0 > 0)
+
+#stage 24v12
+hits2 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v24v12 > 0)
 
 #stage 72v36
-hits3 <- time_course_res %>% 
+hits4 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v72v36 > 0)
 
 #stage 96v72
-hits4 <- time_course_res %>% 
+hits5 <- time_course_res %>% 
   as.data.frame() %>% 
   rownames_to_column("gene") %>% 
   filter(v96v72 > 0)
 ```
 ```{r}
-sample_genes_24v12 <- sample(hits1$gene,4)
-plotGenes(sample_genes_24v12, cleaned_log_cpm_df, metadata)
+sample_genes_12v0 <- sample(hits1$gene,4)
+plotGenes(sample_genes_12v0, cleaned_log_cpm_df, metadata)
 ```
 ```{r}
-sample_genes_36v24 <- sample(hits2$gene,4)
-plotGenes(sample_genes_36v24, cleaned_log_cpm_df, metadata)
+sample_genes_24v12 <- sample(hits2$gene,4)
+plotGenes(sample_genes_24v12, cleaned_log_cpm_df, metadata)
 ```
 
 ```{r}
-sample_genes_72v36 <- sample(hits3$gene,4)
+sample_genes_36v24 <- sample(hits3$gene,4)
+plotGenes(sample_genes_36v24, cleaned_log_cpm_df, metadata)
+```
+```{r}
+sample_genes_72v36 <- sample(hits4$gene,4)
 plotGenes(sample_genes_72v36, cleaned_log_cpm_df, metadata)
 ```
 ```{r}
-sample_genes_96v72 <- sample(hits4$gene,4)
+sample_genes_96v72 <- sample(hits5$gene,4)
 plotGenes(sample_genes_96v72, cleaned_log_cpm_df, metadata)
 ```
+
 
 let's build those genes that according to the paper are DE in 24v12 transition:
 ```{r}
@@ -431,6 +489,31 @@ grid::grid.newpage()
 grid::grid.draw(temp2)
 ```
 
+# Performing analysis without contrast matrix, using 0 as a reference
+
+```{r}
+#0 hours as a reference
+designMatrixReference <- model.matrix(~time, metadata_time)
+head(designMatrixReference, 10) %>% kable()
+```
+```{r}
+# keep the fit around as we will need to it for looking at other contrasts later 
+time_course_Fit_Reference <- lmFit(cleaned_log_cpm_df, designMatrixReference)
+
+# apply eBayes() for moderated statistics
+time_course_Fit_Reference_Ebayes <- eBayes(time_course_Fit_Reference)
+
+genesReference <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
+
+dim(genesReference)
+```
+```{r}
+all_de_genes_ref <- rownames(genesReference)
+all(all_de_genes == all_de_genes_ref)
+```
+
+We are getting the same result as a covariat matrix top table for all genes.  
+
 # Using age as continious
 
 ```{r}
@@ -438,14 +521,14 @@ metadata_cont_time <- metadata[,-2]
 metadata_cont_time %>% kable()
 ```
 ```{r}
-designMatrix <- model.matrix(~0 + age, metadata_cont_time)
+designMatrix <- model.matrix(~age, metadata_cont_time)
 head(designMatrix, 10) %>% kable()
 ```
 ```{r}
 expressionFit_age <- lmFit(cleaned_log_cpm_df, designMatrix)
 expressionFitBayes_age <- eBayes(expressionFit_age)
 
-topGenesAge <- topTable(expressionFitBayes_age, number = Inf, p.value = 0.05)
+topGenesAge <- topTable(expressionFitBayes_age, number = Inf, p.value = 0.05)#, lfc = 1)
 nrow(topGenesAge)
 ```
 ```{r}
@@ -475,10 +558,10 @@ head(paper_de_genes) %>% kable()
 ```
 ```{r}
 #deleting column 12v0, because I didn't  have that comparison
-paper_de_genes <- paper_de_genes[,-2]
+#paper_de_genes <- paper_de_genes[,-2]
 
 paper_de_genes <- paper_de_genes %>%
-  filter(`24v12` != "NC" | `36v24` != "NC" | `72v36` != "NC" | `96v72` != "NC")
+  filter('12v0' != "NC" | `24v12` != "NC" | `36v24` != "NC" | `72v36` != "NC" | `96v72` != "NC")
 dim(paper_de_genes)
 ```
 ```{r}
@@ -492,14 +575,14 @@ grid::grid.draw(temp2)
 summary(time_course_res)
 ```
 ```{r}
-paper_res <- list(`24v12` = table(paper_de_genes$`24v12`), `36v24` = table(paper_de_genes$`36v24`),
+paper_res <- list(`12v0` = table(paper_de_genes$`12v0`), `24v12` = table(paper_de_genes$`24v12`), `36v24` = table(paper_de_genes$`36v24`),
                   `72v36` = table(paper_de_genes$`72v36`), `96v72` = table(paper_de_genes$`96v72`))
 
 paper_res
 ```
 ```{r}
 #hits at 36v24
-head(hits2) %>% kable()
+head(hits3) %>% kable()
 ```
 
 ```{r}
