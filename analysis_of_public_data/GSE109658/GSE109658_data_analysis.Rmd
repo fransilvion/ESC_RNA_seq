@@ -1,0 +1,267 @@
+---
+title: "GSE109658 data analysis"
+author: "German Novakovskiy"
+date: "April 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, echo=FALSE}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+```
+
+
+Here we analyze gene expression data from [this paper.](https://www.ncbi.nlm.nih.gov/pubmed/29427839). 
+
+```{r}
+if (file.exists("GSE109658.Rdata")) {
+    # if previously downloaded
+    load("GSE109658.Rdata")
+} else {
+    # Get geo object that contains our data and phenotype information
+    geo_obj <- getGEO("GSE109658", GSEMatrix = TRUE)
+    geo_obj <- geo_obj[[1]]
+    save(geo_obj, file = "GSE109658.Rdata")
+}
+```
+```{r}
+show(geo_obj)
+```
+
+In metadata all we have is age (0, 1, 2, 3 and 4 days):
+```{r}
+#get covariate matrix
+geo_metadata <- pData(geo_obj)[, c("organism_ch1", "title", colnames(pData(geo_obj))[grep("characteristics", 
+    colnames(pData(geo_obj)))])]
+
+geo_metadata <- geo_metadata[,-3]
+colnames(geo_metadata) <- c("organism", "sample", "description")
+
+geo_metadata$age <- as.factor(rep(c("0", "1", "2", "3", "4"), 3))
+
+geo_metadata %>% kable()
+```
+
+Let's load the expression data (in raw counts):
+```{r}
+expr_data_counts <- read.table("GSE109658_gene_counts.txt", header=TRUE) 
+colnames(expr_data_counts)[-1] <- as.character(geo_metadata$sample)
+
+head(expr_data_counts, 10) %>% kable()
+```
+```{r}
+dim(expr_data_counts)
+```
+
+We have duplicates in rownames (for some reason):
+```{r}
+#we have duplicates in rownames
+repeats <- expr_data_counts$GENE[!isUnique(expr_data_counts$GENE)]
+repeats
+```
+```{r}
+expr_data_counts$GENE <- as.character(expr_data_counts$GENE)
+#get those genes that are not equal in terms of expression (fixing their names)
+#adding "-1" (or other index) to gene name
+for (i in repeats){
+ repeated_rows <- expr_data_counts %>% filter(GENE %in% i)
+ if (nrow(repeated_rows) == 1){
+   next
+ }
+ if (nrow(repeated_rows == 2)){
+   if (all(repeated_rows[1,] == repeated_rows[2,]) == FALSE) {
+     expr_data_counts$GENE[expr_data_counts$GENE == i][1] <- paste(i, "1", sep="-")
+   }
+ }
+ else{
+   for (j in 1:nrow(repeated_rows)-1){
+     if (all(repeated_rows[j,] == repeated_rows[j+1,]) == FALSE) {
+       expr_data_counts$GENE[expr_data_counts$GENE == i][1] <- paste(i, as.character(j), sep="-")
+   }
+   }
+ }
+}
+
+```
+
+Now delete all repeats:
+```{r}
+expr_data_counts <- expr_data_counts[!duplicated(expr_data_counts),]
+dim(expr_data_counts)
+```
+
+
+```{r}
+#first let's create a edgeR DGElist object
+rownams <- expr_data_counts$GENE
+
+expr_data_counts <- as.matrix(expr_data_counts)
+exp_data_counts_matrix <- apply(expr_data_counts[,-1], 2, function(x) as.numeric(x))
+rownames(exp_data_counts_matrix) <- rownams
+
+DGE_bulk_time_course_ec <- DGEList(counts = exp_data_counts_matrix) 
+
+cpm <- cpm(DGE_bulk_time_course_ec)
+keep.exprs <-rowSums(cpm > 1) >= 3 #the smallest group size: AB_1-0, AB_2-0, AB_4-0
+
+DGE_bulk_time_course_ec <- DGE_bulk_time_course_ec[keep.exprs,,]
+
+dim(DGE_bulk_time_course_ec)
+```
+
+We have raw counts, thus we need to perform a library size normalization using edgeR:
+```{r}
+normalized_factors_expression <- calcNormFactors(DGE_bulk_time_course_ec, method = "TMM") #calculation of scaling factors (for library size)
+
+normalized_factors_expression$samples$norm.factors
+```
+
+Let's look at distribution of values:
+```{r}
+#removing gene column and transforming into matrix (for hist)
+data <- as.matrix(DGE_bulk_time_course_ec$counts)
+
+hist(data, main="GSE109658", xlim = c(0,200000), xlab = "Expression",
+     ylab = "Frequency", breaks = 300)
+```
+
+Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage
+```{r}
+metadata_age <- geo_metadata[,c(2,4)]
+metadata_age %>% kable()
+```
+
+First, let's use contrast matrix:
+```{r}
+designMatrix <- model.matrix(~0 + age, metadata_age)
+head(designMatrix, 10) %>% kable()
+```
+
+We can apply voom (which usually takes count data as an input and transforms them to logCPM) that estimates the mean-variance relationship and uses this to compute appropriate observation-level weights. The data are then ready for linear modelling.
+```{r}
+after_voom_cpm <- voom(normalized_factors_expression, designMatrix, plot=TRUE)
+```
+```{r}
+hist(after_voom_cpm$E, main="cleaned GSE109658 - log2 transformed CPM", xlab = "Expression",
+     ylab = "Frequency")
+```
+
+Boxplots to explore the data:
+```{r}
+cleaned_log_cpm_df <- as.data.frame(after_voom_cpm$E)
+
+cleaned_log_cpm_df <- cleaned_log_cpm_df %>% rownames_to_column("gene")
+
+meltedLogedBultTimeCourseEc <- melt(cleaned_log_cpm_df, id='gene')
+
+meltedLogedBultTimeCourseEc %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r}
+plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
+```
+
+Let's create a contrast matrix because we are interested in DE genes across different time points:
+```{r}
+rownames(cleaned_log_cpm_df) <- cleaned_log_cpm_df$gene
+cleaned_log_cpm_df <- cleaned_log_cpm_df[,-1]
+
+# construct the contrast matrix
+contrastMatrix <- makeContrasts(
+  age1vage0 = age1 - age0,
+  age2vage1 = age2 - age1,
+  age3vage2 = age3 - age2,
+  age4vage3 = age4 - age3,
+  levels = designMatrix
+)
+
+contrastMatrix %>% kable()
+```
+
+```{r}
+# keep the fit around as we will need to it for looking at other contrasts later 
+time_course_Fit <- lmFit(cleaned_log_cpm_df, designMatrix)
+
+# fit the contrast using the original fitted model
+contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
+
+# apply eBayes() for moderated statistics
+contrastFitEb <- eBayes(contrastFit)
+
+contrastGenes <- topTable(contrastFitEb)
+
+contrastGenes %>% kable()
+```
+
+```{r}
+cutoff <- 5e-02 #0.05 p value
+#adjust method by default is BH (equivalent to fdr)
+time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 1)
+summary(time_course_res)
+```
+
+Let's look at top genes at different stages:
+```{r}
+hits1 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(age1vage0 > 0)
+
+
+hits2 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(age2vage1 > 0)
+
+
+hits3 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(age3vage2 > 0)
+
+
+hits4 <- time_course_res %>% 
+  as.data.frame() %>% 
+  rownames_to_column("gene") %>% 
+  filter(age4vage3 > 0)
+```
+```{r}
+#function for plotting genes
+plotGenes <- function(genes, expressionMatrix, metadata) {
+  
+  expressionDataForGenes <- expressionMatrix %>%
+    rownames_to_column("gene") %>%
+    filter(gene %in% genes) %>%
+    melt()
+  
+  colnames(expressionDataForGenes) <- c("gene", "sample", "expression")
+  expressionDataForGenes <- expressionDataForGenes %>%
+    left_join(metadata, id="age")
+  
+  expressionDataForGenes %>% 
+    ggplot(aes(x = age, y = expression, color=gene)) +
+    geom_point() +
+    geom_jitter() +
+    stat_summary(aes(y = expression, group=1), fun.y = "mean", geom="line", size=2) +
+    facet_wrap(~gene)
+}
+```
+
