@@ -128,8 +128,7 @@ str(metadata)
 
 Our primary goal here is to analyze bulk_time_course data (each stage with the next stage, step-by-step).
 
-Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (according to GEO query). Thus, we first have to transform them to CPM (counts per million) using edgeR (and also perform a library size normalization):
-
+Deleting low-expressed genes (CPM > 1). We don't want to filter out a gene that is highly expressed in one group, but lowly expressed in another, because that gene may be biologically interesting! So, we identify the smallest number of samples that could be part of one group (3), and make sure we don't remove genes that are expressed in more than that number:
 ```{r}
 #first let's create a edgeR DGElist object
 bulk_time_course_ec <- as.matrix(bulk_time_course_ec)
@@ -139,6 +138,18 @@ bulk_time_course_ec <- apply(bulk_time_course_ec, 2, as.double)
 rownames(bulk_time_course_ec) <- rows
 
 DGE_bulk_time_course_ec <- DGEList(counts = bulk_time_course_ec) 
+
+cpm <- cpm(DGE_bulk_time_course_ec)
+keep.exprs <-rowSums(cpm > 1) >= 3
+
+DGE_bulk_time_course_ec <- DGE_bulk_time_course_ec[keep.exprs,,]
+
+dim(DGE_bulk_time_course_ec)
+```
+
+Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (according to GEO query). Thus, we need to perform a library size normalization using edgeR:
+
+```{r}
 normalized_factors_expression <- calcNormFactors(DGE_bulk_time_course_ec, method = "TMM") #calculation of scaling factors (for library size)
 
 normalized_factors_expression$samples$norm.factors
@@ -146,116 +157,43 @@ normalized_factors_expression$samples$norm.factors
 
 For this dataset the effect of TMM-normalisation is mild, as evident in the magnitude of the scaling factors, which are all relatively close to 1.
 
-Now let's calculate the cpm values for this expression dataset (taking into consideration the calculated above factors)
-```{r}
-cpm_bulk_time_course_expression <- cpm(normalized_factors_expression, log = FALSE)
-
-head(cpm_bulk_time_course_expression) %>% kable()
-```
-
-
-Now let's do some sanity check: let's see how gene expression is distributed across different samples in different time points:
-
-```{r}
-#change first column name to gene
-cpm_df <- as.data.frame(cpm_bulk_time_course_expression)
-cpm_df <- cpm_df %>%
-  rownames_to_column("gene")
-
-meltedBultTimeCourseEc <- melt(cpm_df, id='gene')
-
-meltedBultTimeCourseEc %>%
-  ggplot(aes(x = variable, y = value)) +
-  geom_boxplot() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-```
-Let's look at density plots:
-```{r}
-meltedBultTimeCourseEc %>% 
-  ggplot(aes(x = value, color = variable)) +
-  geom_density() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-```
-
-We can look at the variance and means across all samples to see, how bad is the situation:
-```{r}
-#calculating variances of different samples
-var_column <- apply(cpm_df[,-1], 2, var)
-
-#calculating means of different samples
-mean_column <- apply(cpm_df[,-1], 2, mean)
-
-#creating a data frame
-df <- data.frame(Samples = names(var_column), Variance = var_column, Mean = mean_column)
-rownames(df) <- c()
-
-head(df)
-```
-```{r fig.width=10, fig.height=5,echo=FALSE}
-variance <- ggplot(df, aes(x = Samples, y = Variance, group = 1, colour = "variance")) +
-  geom_line(size=2) +
-  theme_bw() +
-  scale_color_manual(values=c("red")) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-mean <- ggplot(df, aes(x = Samples, y = Mean, group = 1, colour = "mean")) +
-  geom_line(size=2) +
-  theme_bw() +
-  scale_color_manual(values=c("blue")) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-plot_grid(variance, mean, labels = "AUTO")
-```
-
-We can see that variance and means are both not the same at all for different samples (especially for 72 hours samples).
 Let's look at distribution of values:
 
 ```{r}
 #removing gene column and transforming into matrix (for hist)
-data <- as.matrix(cpm_df[,-1])
+data <- as.matrix(DGE_bulk_time_course_ec$counts)
 
 hist(data, main="GSE75748", xlim = c(0,1500), xlab = "Expression",
      ylab = "Frequency", breaks = 300)
 ```
-Let's try a log transformation here:
 
+Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
 ```{r}
-hist(log2(data + 0.25), main="GSE75748 - log2 transformed", xlab = "Expression",
-     ylab = "Frequency")
+metadata_time <- metadata[,-3]
+metadata_time %>% kable()
+```
+```{r}
+designMatrix <- model.matrix(~0 + time, metadata_time)
+head(designMatrix, 10) %>% kable()
 ```
 
-All datasets will include a mix of genes that are expressed and those that are not expressed. Whilst it is of interest
-to examine genes that are expressed in one condition but not in another, some genes are unexpressed throughout all
-samples. Let's check how many genes have zero expression across all 18 samples (in time series data):
+We have estimated counts data here. So we can apply voom (which usually takes count data as an input and transforms them to logCPM) that estimates the mean-variance relationship and uses this to compute appropriate observation-level weights. The data are then ready for linear modelling. 
 
 ```{r}
-#changing the original data frame into log2
-log_cpm_df <- cpm_df
-log_cpm_df[,2 : ncol(cpm_df)] <- log2(log_cpm_df[,2:ncol(cpm_df)] + 1)
-
-table(rowSums(log_cpm_df[,-1]==0)==15)
-```
-We see that more than 2% of genes don't have any expression across all samples. Let's just delete them:
-```{r}
-#let's delete those genes that have less than 6 samples without zero expression
-keep.exprs <- rowSums(log_cpm_df[,-1] > 0) > 6
-cleaned_log_cpm_df <- log_cpm_df[keep.exprs,]
-```
-
-The number of remained genes:
-```{r}
-nrow(cleaned_log_cpm_df)
+after_voom_cpm <- voom(normalized_factors_expression, designMatrix, plot=TRUE)
 ```
 
 ```{r}
-log_clean_data <- as.matrix(cleaned_log_cpm_df[,-1])
-
-hist(log_clean_data, main="cleaned GSE75748 - log2 transformed", xlab = "Expression",
+hist(after_voom_cpm$E, main="cleaned GSE75748 - log2 transformed CPM", xlab = "Expression",
      ylab = "Frequency")
 ```
 Let's build boxplots and explore the data:
 
 ```{r}
+cleaned_log_cpm_df <- as.data.frame(after_voom_cpm$E)
+
+cleaned_log_cpm_df <- cleaned_log_cpm_df %>% rownames_to_column("gene")
+
 meltedLogedBultTimeCourseEc <- melt(cleaned_log_cpm_df, id='gene')
 
 meltedLogedBultTimeCourseEc %>%
@@ -271,15 +209,8 @@ plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
 
 It's clear that time ponts 0h, 12h, 24h and 36h are well (mostly) separated from each other and 72h with 96h, however the last group (72 and 96) is clustered closer together, thus we don't expect to see much DE genes in these groups.
 
-Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage (from 12 to 24, from 24 to 36 and etc.):
-```{r}
-metadata_time <- metadata[,-3]
-metadata_time %>% kable()
-```
-```{r}
-designMatrix <- model.matrix(~0 + time, metadata_time)
-head(designMatrix, 10) %>% kable()
-```
+
+Let's create a contrast matrix because we are interested in DE genes across different time points (12h compared to 0h, 24h compared to 12h and so on):
 
 ```{r}
 rownames(cleaned_log_cpm_df) <- cleaned_log_cpm_df$gene
@@ -446,6 +377,7 @@ In my work I found this number of DE genes:
 allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
 nrow(allDEGenes)
 ```
+
 According to Decide tests we have this number of DE genes (at different time stages):
 
 ```{r}
@@ -497,8 +429,10 @@ designMatrixReference <- model.matrix(~time, metadata_time)
 head(designMatrixReference, 10) %>% kable()
 ```
 ```{r}
+v <- voom (normalized_factors_expression, designMatrixReference, plot = FALSE)
+
 # keep the fit around as we will need to it for looking at other contrasts later 
-time_course_Fit_Reference <- lmFit(cleaned_log_cpm_df, designMatrixReference)
+time_course_Fit_Reference <- lmFit(v, designMatrixReference)
 
 # apply eBayes() for moderated statistics
 time_course_Fit_Reference_Ebayes <- eBayes(time_course_Fit_Reference)
