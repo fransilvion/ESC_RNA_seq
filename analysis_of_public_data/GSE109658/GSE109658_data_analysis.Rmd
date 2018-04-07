@@ -2,7 +2,7 @@
 title: "GSE109658 data analysis"
 author: "German Novakovskiy"
 date: "April 6, 2018"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -265,25 +265,33 @@ plotGenes <- function(genes, expressionMatrix, metadata) {
 }
 ```
 
-Comparisons to key genes from previous analysis:
+Comparisons to key genes from previous analysis.
+
+Mesodendoderm markers:
 ```{r}
 sample_genes <- c("T", "CDX1", "MSX2")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 ```
+
+Let's look at the expression of these genes EOMES, CER1, GATA4, PRDM1, and POU2AF1 at 96h because they are expected to be highly expressed during 4 days stage
 ```{r}
 sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1", "KLF8")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 ```
+
+Pluripotency genes POU5F1, NANOG, and SOX2:
 ```{r}
 sample_genes <- c("POU5F1", "NANOG", "SOX2")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 ```
 
+Key DE markers CXCR4, SOX17, HNF1B, KIT, and KRT19:
 ```{r}
 sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 ```
 
+Interesting genes, which is regulated by long non-coding RNA DEANR1:
 ```{r}
 sample_genes <- c("FOXA2")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
