@@ -155,7 +155,7 @@ str(metadata)
 
 Our primary goal here is to analyze bulk\_time\_course data (each stage with the next stage, step-by-step).
 
-Deleting low-expressed genes (CPM &gt; 1). We don't want to filter out a gene that is highly expressed in one group, but lowly expressed in another, because that gene may be biologically interesting! So, we identify the smallest number of samples that could be part of one group (3), and make sure we don't remove genes that are expressed in more than that number:
+Deleting low-expressed genes (CPM &gt; 3). We don't want to filter out a gene that is highly expressed in one group, but lowly expressed in another, because that gene may be biologically interesting! So, we identify the smallest number of samples that could be part of one group (3), and make sure we don't remove genes that are expressed in more than that number:
 
 ``` r
 #first let's create a edgeR DGElist object
@@ -165,17 +165,22 @@ rows <- rownames(bulk_time_course_ec)
 bulk_time_course_ec <- apply(bulk_time_course_ec, 2, as.double)
 rownames(bulk_time_course_ec) <- rows
 
+#for testing, delete after
+#bulk_time_course_ec <- bulk_time_course_ec[,-c(1:3)]
+
 DGE_bulk_time_course_ec <- DGEList(counts = bulk_time_course_ec) 
 
 cpm <- cpm(DGE_bulk_time_course_ec)
-keep.exprs <-rowSums(cpm > 1) >= 3
+keep.exprs <-rowSums(cpm > 5) >= 3
 
 DGE_bulk_time_course_ec <- DGE_bulk_time_course_ec[keep.exprs,,]
 
 dim(DGE_bulk_time_course_ec)
 ```
 
-    ## [1] 14333    18
+    ## [1] 11942    18
+
+Very useful insight about [the filtering step](https://support.bioconductor.org/p/77178/).
 
 Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (according to GEO query). Thus, we need to perform a library size normalization using edgeR:
 
@@ -185,11 +190,11 @@ normalized_factors_expression <- calcNormFactors(DGE_bulk_time_course_ec, method
 normalized_factors_expression$samples$norm.factors
 ```
 
-    ##  [1] 0.8442666 0.8716866 0.8044489 1.0858852 1.1035056 1.0820767 1.0468473
-    ##  [8] 1.0447433 1.0476810 1.0021610 1.0003328 1.0034298 0.9439126 1.0600265
-    ## [15] 1.0124795 1.0272051 1.0362534 1.0480844
+    ##  [1] 0.8428422 0.8703352 0.8118465 1.0859853 1.1004586 1.0886113 1.0490378
+    ##  [8] 1.0540197 1.0514873 1.0052039 1.0037277 1.0121749 0.9378989 1.0534128
+    ## [15] 1.0056914 1.0215541 1.0297469 1.0400207
 
-For this dataset the effect of TMM-normalisation is mild, as evident in the magnitude of the scaling factors, which are all relatively close to 1.
+For this dataset the effect of TMM-normalisation is mild, as evident in the magnitude of the scaling factors, which are all relatively close to 1 (except samples that are from single cell data, 0h time point).
 
 Let's look at distribution of values:
 
@@ -207,6 +212,8 @@ Let's now perform RNA-seq analysis with limma, using only time factor variable (
 
 ``` r
 metadata_time <- metadata[,-3]
+
+metadata_time$samples <- as.character(metadata_time$samples)
 metadata_time %>% kable()
 ```
 
@@ -319,7 +326,7 @@ contrastMatrix %>% kable()
 
 ``` r
 # keep the fit around as we will need to it for looking at other contrasts later 
-time_course_Fit <- lmFit(cleaned_log_cpm_df, designMatrix)
+time_course_Fit <- lmFit(after_voom_cpm, designMatrix)
 
 # fit the contrast using the original fitted model
 contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
@@ -327,23 +334,16 @@ contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
 # apply eBayes() for moderated statistics
 contrastFitEb <- eBayes(contrastFit)
 
-contrastGenes <- topTable(contrastFitEb)
+contrastGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05)
 
-contrastGenes %>% kable()
+plotSA(contrastFitEb)
 ```
 
-|          |       v12v0|      v24v12|      v36v24|      v72v36|      v96v72|   AveExpr|         F|  P.Value|  adj.P.Val|
-|----------|-----------:|-----------:|-----------:|-----------:|-----------:|---------:|---------:|--------:|----------:|
-| GRM4     |   2.2089230|   1.1734871|  -2.4766781|  -6.0614660|   0.0292857|  2.485032|  977.3394|        0|          0|
-| EOMES    |   8.8302459|   0.6724103|   0.1751554|   0.7446285|  -0.2371836|  7.096943|  842.7476|        0|          0|
-| RSPO3    |  -0.8314077|   5.7547933|   2.2045844|   0.4417324|   0.0925639|  3.268075|  765.7165|        0|          0|
-| WLS      |   6.4954736|   2.2393209|   0.1029077|   0.6515993|  -0.0697174|  6.297953|  707.2975|        0|          0|
-| HTRA1    |   2.3781906|  -0.7974383|  -0.2921808|   6.8048875|   0.0139365|  4.578772|  687.9387|        0|          0|
-| SERPINE2 |   3.5305349|   2.4714634|   0.5893767|   0.0998826|  -0.1530383|  8.917734|  663.6921|        0|          0|
-| TBX3     |   5.6716824|   2.6807795|   1.3694251|  -2.8127483|  -0.2857683|  5.072513|  623.4500|        0|          0|
-| DKK1     |   3.7353694|   3.9606430|   0.9531446|  -0.1500933|  -0.3256291|  4.984929|  596.5328|        0|          0|
-| ZEB2     |   4.2841122|   1.5376152|   1.9141175|  -0.1566615|  -0.3736645|  4.436634|  554.0512|        0|          0|
-| MMP14    |   5.4107705|   1.2799127|   1.6240900|   0.9572361|  -0.8326844|  5.685395|  528.9915|        0|          0|
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-21-1.png)
+
+``` r
+#contrastGenes %>% kable()
+```
 
 ``` r
 cutoff <- 5e-02 #0.05 p value
@@ -353,9 +353,9 @@ summary(time_course_res)
 ```
 
     ##        v12v0 v24v12 v36v24 v72v36 v96v72
-    ## Down    2894     94    253   1840    116
-    ## NotSig  8417  14019  13729  10733  14090
-    ## Up      3022    220    351   1760    127
+    ## Down    2625    148    271   1732    129
+    ## NotSig  6515  11563  11293   8542  11657
+    ## Up      2802    231    378   1668    156
 
 We see there are different number of genes up and down regulated at each stage.
 
@@ -372,11 +372,11 @@ head(hits3) %>% kable()
 
 | gene   |  v12v0|  v24v12|  v36v24|  v72v36|  v96v72|
 |:-------|------:|-------:|-------:|-------:|-------:|
-| ABHD6  |      0|       1|       1|      -1|       0|
+| AADAT  |      0|       0|       1|       0|       0|
+| ABHD6  |      0|       0|       1|      -1|       0|
 | ABLIM1 |      0|       0|       1|      -1|       0|
 | ABTB2  |      0|       0|       1|       0|       0|
 | ACSS3  |      0|       1|       1|       0|       0|
-| ACVRL1 |     -1|       0|       1|       1|       0|
 | ADAM12 |      0|       0|       1|       0|       1|
 
 ``` r
@@ -531,6 +531,7 @@ Now let's look at key DE markers CXCR4, SOX17, HNF1B, KIT, and KRT19:
 
 ``` r
 #sample_genes <- c("FOXA2")
+#HNF1B is filtered as low expressed gene (cpm < 5)
 sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
@@ -554,7 +555,7 @@ allDEGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
 nrow(allDEGenes)
 ```
 
-    ## [1] 8817
+    ## [1] 7886
 
 According to Decide tests we have this number of DE genes (at different time stages):
 
@@ -564,7 +565,7 @@ de_genes_at_stages <- time_course_res[de_genes_rows,]
 nrow(de_genes_at_stages)
 ```
 
-    ## [1] 8090
+    ## [1] 7480
 
 We will check both numbers.
 
@@ -656,7 +657,7 @@ genesReference <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
 dim(genesReference)
 ```
 
-    ## [1] 8817    9
+    ## [1] 7886    9
 
 ``` r
 all_de_genes_ref <- rownames(genesReference)
@@ -727,7 +728,7 @@ topGenesAge <- topTable(expressionFitBayes_age, number = Inf, p.value = 0.05)#, 
 nrow(topGenesAge)
 ```
 
-    ## [1] 5968
+    ## [1] 5326
 
 ``` r
 head(topGenesAge) %>% kable()
@@ -735,12 +736,12 @@ head(topGenesAge) %>% kable()
 
 |         |       logFC|   AveExpr|          t|  P.Value|  adj.P.Val|         B|
 |---------|-----------:|---------:|----------:|--------:|----------:|---------:|
-| CYP26A1 |   0.0994021|  6.154112|   19.99919|        0|          0|  22.44215|
-| AP1M2   |  -0.0918790|  2.899708|  -19.37828|        0|          0|  21.87479|
-| CRABP1  |  -0.0741114|  2.894697|  -19.18767|        0|          0|  21.69703|
-| CDH3    |  -0.0601161|  4.131228|  -17.73228|        0|          0|  20.28048|
-| COL3A1  |   0.1272345|  2.570885|   17.27234|        0|          0|  19.80961|
-| ESRP1   |  -0.0942202|  4.839029|  -16.55618|        0|          0|  19.05243|
+| CYP26A1 |   0.0995670|  6.154112|   20.25512|        0|          0|  22.66588|
+| AP1M2   |  -0.0917140|  2.899708|  -19.61839|        0|          0|  22.08642|
+| CRABP1  |  -0.0739464|  2.894697|  -19.44200|        0|          0|  21.92265|
+| CDH3    |  -0.0599511|  4.131228|  -18.15966|        0|          0|  20.68725|
+| COL3A1  |   0.1273994|  2.570885|   17.34050|        0|          0|  19.85395|
+| ESRP1   |  -0.0940553|  4.839029|  -16.65435|        0|          0|  19.12717|
 
 ``` r
 sample_genes <- rownames(topGenesAge)[1:6]
@@ -807,9 +808,9 @@ summary(time_course_res)
 ```
 
     ##        v12v0 v24v12 v36v24 v72v36 v96v72
-    ## Down    2894     94    253   1840    116
-    ## NotSig  8417  14019  13729  10733  14090
-    ## Up      3022    220    351   1760    127
+    ## Down    2625    148    271   1732    129
+    ## NotSig  6515  11563  11293   8542  11657
+    ## Up      2802    231    378   1668    156
 
 ``` r
 paper_res <- list(`12v0` = table(paper_de_genes$`12v0`), `24v12` = table(paper_de_genes$`24v12`), `36v24` = table(paper_de_genes$`36v24`),
@@ -850,11 +851,11 @@ head(hits3) %>% kable()
 
 | gene   |  v12v0|  v24v12|  v36v24|  v72v36|  v96v72|
 |:-------|------:|-------:|-------:|-------:|-------:|
-| ABHD6  |      0|       1|       1|      -1|       0|
+| AADAT  |      0|       0|       1|       0|       0|
+| ABHD6  |      0|       0|       1|      -1|       0|
 | ABLIM1 |      0|       0|       1|      -1|       0|
 | ABTB2  |      0|       0|       1|       0|       0|
 | ACSS3  |      0|       1|       1|       0|       0|
-| ACVRL1 |     -1|       0|       1|       1|       0|
 | ADAM12 |      0|       0|       1|       0|       1|
 
 ``` r
@@ -871,7 +872,7 @@ s <- setdiff(paper_up_36v24$Gene, hits2$gene)
 length(s)
 ```
 
-    ## [1] 941
+    ## [1] 946
 
 ``` r
 #plot genes that are DE in paper at 36 to 24 but not in my results
