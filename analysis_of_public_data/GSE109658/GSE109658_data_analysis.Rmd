@@ -198,7 +198,7 @@ contrastMatrix %>% kable()
 
 ```{r}
 # keep the fit around as we will need to it for looking at other contrasts later 
-time_course_Fit <- lmFit(cleaned_log_cpm_df, designMatrix)
+time_course_Fit <- lmFit(after_voom_cpm, designMatrix)
 
 # fit the contrast using the original fitted model
 contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
@@ -206,9 +206,9 @@ contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
 # apply eBayes() for moderated statistics
 contrastFitEb <- eBayes(contrastFit)
 
-contrastGenes <- topTable(contrastFitEb)
+contrastGenes <- topTable(contrastFitEb, number = Inf, p.value = 0.05)
 
-contrastGenes %>% kable()
+plotSA(contrastFitEb)
 ```
 
 ```{r}
@@ -218,7 +218,7 @@ time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 1)
 summary(time_course_res)
 ```
 
-Let's look at top genes at different stages:
+Let's look at top upregulated genes at different stages:
 ```{r}
 hits1 <- time_course_res %>% 
   as.data.frame() %>% 
@@ -263,5 +263,29 @@ plotGenes <- function(genes, expressionMatrix, metadata) {
     stat_summary(aes(y = expression, group=1), fun.y = "mean", geom="line", size=2) +
     facet_wrap(~gene)
 }
+```
+
+Comparisons to key genes from previous analysis:
+```{r}
+sample_genes <- c("T", "CDX1", "MSX2")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+```{r}
+sample_genes <- c("EOMES", "CER1", "GATA4", "PRDM1", "POU2AF1", "KLF8")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+```{r}
+sample_genes <- c("POU5F1", "NANOG", "SOX2")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+
+```{r}
+sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+
+```{r}
+sample_genes <- c("FOXA2")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 ```
 
