@@ -565,25 +565,33 @@ head(commonGenesTrends) %>% kable()
 | MYOF    |          0|          1|          0|          0|
 
 ``` r
-#only 18
-upRegulatedToDE <- commonGenesTrends %>%
-  as.data.frame() %>%
-  rownames_to_column("gene") %>%
-  filter(age3vage2 == 1)
+contrastMatrix <- makeContrasts(
+  age3vage0 = age3 - age0,
+  age4vage0 = age4 - age0,
+  levels = designMatrix
+)
 
+# keep the fit around as we will need to it for looking at other contrasts later 
+time_course_Fit <- lmFit(after_voom_cpm, designMatrix)
 
-sample_genes <- upRegulatedToDE$gene[1:6]
-plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+# fit the contrast using the original fitted model
+contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
+
+# apply eBayes() for moderated statistics
+contrastFitEb <- eBayes(contrastFit)
+
+time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 2)
+summary(time_course_res)
 ```
 
-    ## Using gene as id variables
-
-    ## Joining, by = "sample"
-
-![](GSE109658_data_analysis_files/figure-markdown_github/unnamed-chunk-36-1.png)
+    ##        age3vage0 age4vage0
+    ## Down         904       845
+    ## NotSig     11879     11873
+    ## Up          1421      1486
 
 ``` r
-dim(upRegulatedToDE)
+upRegulated <- time_course_res %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(age3vage0 == 1 & age4vage0 == 1)
 ```
-
-    ## [1] 74  5
