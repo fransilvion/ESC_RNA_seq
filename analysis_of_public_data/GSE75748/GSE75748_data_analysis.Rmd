@@ -445,16 +445,56 @@ time_course_Fit_Reference <- lmFit(v, designMatrixReference)
 # apply eBayes() for moderated statistics
 time_course_Fit_Reference_Ebayes <- eBayes(time_course_Fit_Reference)
 
-genesReference <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
+genesReference <- topTable(time_course_Fit_Reference_Ebayes, number = Inf, p.value = 0.05, lfc = 1)
 
 dim(genesReference)
 ```
+
 ```{r}
-all_de_genes_ref <- rownames(genesReference)
-all(all_de_genes == all_de_genes_ref)
+genesReference75748 <- genesReference
+save(genesReference75748, file="GSE75748_topGenes.Rdata")
 ```
 
-We are getting the same result as a covariat matrix top table for all genes.  
+# Comparisons of different papers
+
+```{r}
+load("../GSE109658/GSE109658_topGenes.Rdata")
+
+genes109658 <- rownames(genesReference109658)
+genes75748 <- rownames(genesReference75748)
+
+commonGenes <- intersect(genes109658, genes75748)
+length(commonGenes)
+```
+```{r}
+commonGenes <- genesReference75748[commonGenes,]
+commonGenes <- commonGenes[with(commonGenes, order(adj.P.Val)),]
+
+
+sample_genes <- rownames(commonGenes)[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+```{r}
+all(rownames(commonGenes) %in% rownames(time_course_res))
+```
+```{r}
+commonGenesTrends <- time_course_res[rownames(commonGenes),]
+head(commonGenesTrends) %>% kable()
+```
+```{r}
+upRegulatedToDE <- commonGenesTrends %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(`v72v36` == 1)
+
+#79 are upregulated to DE
+sample_genes <- upRegulatedToDE$gene[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+```{r}
+dim(upRegulatedToDE)
+```
+
 
 # Using age as continious
 

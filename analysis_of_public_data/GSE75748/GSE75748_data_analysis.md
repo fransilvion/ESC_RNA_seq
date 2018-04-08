@@ -652,21 +652,94 @@ time_course_Fit_Reference <- lmFit(v, designMatrixReference)
 # apply eBayes() for moderated statistics
 time_course_Fit_Reference_Ebayes <- eBayes(time_course_Fit_Reference)
 
-genesReference <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1)
+genesReference <- topTable(time_course_Fit_Reference_Ebayes, number = Inf, p.value = 0.05, lfc = 1)
+```
 
+    ## Removing intercept from test coefficients
+
+``` r
 dim(genesReference)
 ```
 
-    ## [1] 7886    9
+    ## [1] 8510    9
 
 ``` r
-all_de_genes_ref <- rownames(genesReference)
-all(all_de_genes == all_de_genes_ref)
+genesReference75748 <- genesReference
+save(genesReference75748, file="GSE75748_topGenes.Rdata")
+```
+
+Comparisons of different papers
+===============================
+
+``` r
+load("../GSE109658/GSE109658_topGenes.Rdata")
+
+genes109658 <- rownames(genesReference109658)
+genes75748 <- rownames(genesReference75748)
+
+commonGenes <- intersect(genes109658, genes75748)
+length(commonGenes)
+```
+
+    ## [1] 3321
+
+``` r
+commonGenes <- genesReference75748[commonGenes,]
+commonGenes <- commonGenes[with(commonGenes, order(adj.P.Val)),]
+
+
+sample_genes <- rownames(commonGenes)[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-46-1.png)
+
+``` r
+all(rownames(commonGenes) %in% rownames(time_course_res))
 ```
 
     ## [1] TRUE
 
-We are getting the same result as a covariat matrix top table for all genes.
+``` r
+commonGenesTrends <- time_course_res[rownames(commonGenes),]
+head(commonGenesTrends) %>% kable()
+```
+
+|         |  v12v0|  v24v12|  v36v24|  v72v36|  v96v72|
+|---------|------:|-------:|-------:|-------:|-------:|
+| ANP32E  |     -1|       0|       0|      -1|       0|
+| TERF1   |     -1|      -1|       0|       0|       0|
+| SRSF6   |     -1|       0|       0|      -1|       0|
+| AK4     |     -1|      -1|      -1|       0|       0|
+| PPP3CA  |     -1|       0|       0|      -1|       0|
+| RHOBTB3 |      0|       1|       1|       1|       0|
+
+``` r
+upRegulatedToDE <- commonGenesTrends %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(`v72v36` == 1)
+
+#79 are upregulated to DE
+sample_genes <- upRegulatedToDE$gene[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-49-1.png)
+
+``` r
+dim(upRegulatedToDE)
+```
+
+    ## [1] 816   6
 
 Using age as continious
 =======================
@@ -752,7 +825,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-49-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-55-1.png)
 
 ``` r
 temp <- venn.diagram(list(My_TopTable = rownames(topGenesAge), Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my all DE genes (from TopTable)", category.names = c("My topTable", "Paper genes"))
@@ -761,7 +834,7 @@ grid::grid.newpage()
 grid::grid.draw(temp)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-50-1.png) \# Finding discrepancies
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-56-1.png) \# Finding discrepancies
 
 ``` r
 paper_de_genes <- read_excel("13059_2016_1033_MOESM4_ESM.xlsx")
@@ -800,7 +873,7 @@ grid::grid.newpage()
 grid::grid.draw(temp2)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-53-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-59-1.png)
 
 ``` r
 #reminder
@@ -885,4 +958,4 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-59-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-65-1.png)

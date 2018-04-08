@@ -455,3 +455,135 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
     ## Joining, by = "sample"
 
 ![](GSE109658_data_analysis_files/figure-markdown_github/unnamed-chunk-28-1.png)
+
+Performing analysis without contrast matrix, using 0 as a reference
+===================================================================
+
+``` r
+#0 hours as a reference
+designMatrixReference <- model.matrix(~age, metadata_age)
+head(designMatrixReference, 10) %>% kable()
+```
+
+|            |  (Intercept)|  age1|  age2|  age3|  age4|
+|------------|------------:|-----:|-----:|-----:|-----:|
+| GSM2948049 |            1|     0|     0|     0|     0|
+| GSM2948050 |            1|     1|     0|     0|     0|
+| GSM2948051 |            1|     0|     1|     0|     0|
+| GSM2948052 |            1|     0|     0|     1|     0|
+| GSM2948053 |            1|     0|     0|     0|     1|
+| GSM2948054 |            1|     0|     0|     0|     0|
+| GSM2948055 |            1|     1|     0|     0|     0|
+| GSM2948056 |            1|     0|     1|     0|     0|
+| GSM2948057 |            1|     0|     0|     1|     0|
+| GSM2948058 |            1|     0|     0|     0|     1|
+
+``` r
+v <- voom (normalized_factors_expression, designMatrixReference, plot = FALSE)
+
+# keep the fit around as we will need to it for looking at other contrasts later 
+time_course_Fit_Reference <- lmFit(v, designMatrixReference)
+
+# apply eBayes() for moderated statistics
+time_course_Fit_Reference_Ebayes <- eBayes(time_course_Fit_Reference)
+
+genesReference <- topTable(time_course_Fit_Reference_Ebayes, number = Inf, p.value = 0.05, lfc = 1)
+```
+
+    ## Removing intercept from test coefficients
+
+``` r
+dim(genesReference)
+```
+
+    ## [1] 5316    8
+
+``` r
+head(genesReference, n = 10) %>% kable()
+```
+
+|         |        age1|       age2|       age3|       age4|   AveExpr|         F|  P.Value|  adj.P.Val|
+|---------|-----------:|----------:|----------:|----------:|---------:|---------:|--------:|----------:|
+| WLS     |   6.1506191|  5.4355241|   6.793959|   6.511847|  7.402788|  191.3879|        0|      0e+00|
+| COL5A2  |   1.2495416|  5.8327850|   6.854836|   7.008444|  9.520181|  181.0276|        0|      0e+00|
+| CDH2    |   3.1354103|  3.6981243|   3.965446|   3.877833|  9.520534|  134.1935|        0|      0e+00|
+| PCSK1   |   6.0565953|  1.2755851|  -2.040311|  -2.882927|  1.434500|  133.3779|        0|      0e+00|
+| S100A16 |  -0.7910597|  0.7940804|   3.674754|   5.045669|  3.769794|  130.5957|        0|      0e+00|
+| MYOF    |   0.0825227|  3.3723756|   4.319092|   5.022343|  4.889323|  129.0159|        0|      0e+00|
+| CPE     |   0.6229462|  3.5408699|   4.442434|   4.754941|  6.846062|  119.7418|        0|      1e-07|
+| DLC1    |   4.3080509|  5.0879268|   5.193869|   4.875812|  7.226153|  118.9950|        0|      1e-07|
+| HAS2    |   3.8994731|  5.4769198|   5.801879|   5.585006|  8.231648|  117.8946|        0|      1e-07|
+| PCDH10  |   4.6526027|  5.6372352|   5.640546|   5.592996|  8.577954|  115.5102|        0|      1e-07|
+
+``` r
+genesReference109658 <- genesReference
+save(genesReference109658, file="GSE109658_topGenes.Rdata")
+```
+
+Comparisons of different papers
+===============================
+
+``` r
+load("../GSE75748/GSE75748_topGenes.Rdata")
+
+genes75748 <- rownames(genesReference75748)
+genes109658 <- rownames(genesReference109658)
+
+commonGenes <- intersect(genes109658, genes75748)
+length(commonGenes)
+```
+
+    ## [1] 3321
+
+``` r
+commonGenes <- genesReference109658[commonGenes,]
+commonGenes <- commonGenes[with(commonGenes, order(adj.P.Val)),]
+
+
+sample_genes <- rownames(commonGenes)[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "sample"
+
+![](GSE109658_data_analysis_files/figure-markdown_github/unnamed-chunk-34-1.png)
+
+``` r
+commonGenesTrends <- time_course_res[rownames(commonGenes),]
+head(commonGenesTrends) %>% kable()
+```
+
+|         |  age1vage0|  age2vage1|  age3vage2|  age4vage3|
+|---------|----------:|----------:|----------:|----------:|
+| WLS     |          1|          0|          1|          0|
+| COL5A2  |          1|          1|          0|          0|
+| CDH2    |          1|          0|          0|          0|
+| PCSK1   |          1|         -1|         -1|          0|
+| S100A16 |          0|          1|          1|          0|
+| MYOF    |          0|          1|          0|          0|
+
+``` r
+#only 18
+upRegulatedToDE <- commonGenesTrends %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(age3vage2 == 1)
+
+
+sample_genes <- upRegulatedToDE$gene[1:6]
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "sample"
+
+![](GSE109658_data_analysis_files/figure-markdown_github/unnamed-chunk-36-1.png)
+
+``` r
+dim(upRegulatedToDE)
+```
+
+    ## [1] 74  5
