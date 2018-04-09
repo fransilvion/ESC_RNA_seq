@@ -542,6 +542,19 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
 ![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-34-1.png) It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19 and HNF1B did not change so much, but KRT19 remained highly expressed, while HNF1B remained to be down-regulated.
 
+Interesting genes: - FOXA2, which is regulated by long non-coding RNA DEANR1 (is low filtered here); - GSC is controlled by DIGIT lncRNA; - EOMES, MIXL1, SOX17 are DE markers (MIXL1 is mesodendoderm marker)
+
+``` r
+sample_genes <- c("FOXA2", "GSC", "EOMES", "MIXL1", "SOX17")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+    ## Using gene as id variables
+
+    ## Joining, by = "samples"
+
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-35-1.png)
+
 Comparisons with the paper
 ==========================
 
@@ -610,7 +623,7 @@ grid::grid.newpage()
 grid::grid.draw(temp)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-40-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-41-1.png)
 
 ``` r
 temp2 <- venn.diagram(list(My_TopTable = stages_de_genes, Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my stage DE genes (from decideTests)", category.names = c("Stage DE genes", "Paper genes"))
@@ -619,7 +632,7 @@ grid::grid.newpage()
 grid::grid.draw(temp2)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-41-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-42-1.png)
 
 Performing analysis without contrast matrix, using 0 as a reference
 ===================================================================
@@ -696,7 +709,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-46-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-47-1.png)
 
 ``` r
 all(rownames(commonGenes) %in% rownames(time_course_res))
@@ -733,7 +746,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-49-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-50-1.png)
 
 ``` r
 dim(upRegulatedToDE)
@@ -825,7 +838,7 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-55-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-56-1.png)
 
 ``` r
 temp <- venn.diagram(list(My_TopTable = rownames(topGenesAge), Paper_genes = paper_de_genes),fill = c("red", "green"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, main = "Comparison of paper DE genes with my all DE genes (from TopTable)", category.names = c("My topTable", "Paper genes"))
@@ -834,7 +847,7 @@ grid::grid.newpage()
 grid::grid.draw(temp)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-56-1.png) \# Finding discrepancies
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-57-1.png) \# Finding discrepancies
 
 ``` r
 paper_de_genes <- read_excel("13059_2016_1033_MOESM4_ESM.xlsx")
@@ -873,7 +886,7 @@ grid::grid.newpage()
 grid::grid.draw(temp2)
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-59-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-60-1.png)
 
 ``` r
 #reminder
@@ -958,4 +971,4 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 
     ## Joining, by = "samples"
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-65-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-66-1.png)

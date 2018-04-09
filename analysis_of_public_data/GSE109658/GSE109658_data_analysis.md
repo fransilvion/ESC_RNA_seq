@@ -590,8 +590,20 @@ summary(time_course_res)
     ## Up          1421      1486
 
 ``` r
-upRegulated <- time_course_res %>%
+upRegulated109658 <- time_course_res %>%
   as.data.frame() %>%
   rownames_to_column("gene") %>%
-  filter(age3vage0 == 1 & age4vage0 == 1)
+  filter(age4vage0 == 1)
+
+downRegulated109658 <- time_course_res %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(age4vage0 == -1)
+```
+
+We have 1486 upregulated genes and 845 downregulated genes.
+
+``` r
+save(upRegulated109658, file="upRegulated109658.Rdata")
+save(downRegulated109658, file="downRegulated109658.Rdata")
 ```
