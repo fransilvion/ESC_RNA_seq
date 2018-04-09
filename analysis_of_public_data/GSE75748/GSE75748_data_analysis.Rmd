@@ -375,6 +375,15 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
 It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19 and HNF1B did not change so much, but KRT19 remained highly expressed, while HNF1B remained to be down-regulated.
 
+Interesting genes:
+- FOXA2, which is regulated by long non-coding RNA DEANR1 (is low filtered here);
+- GSC is controlled by DIGIT lncRNA;
+- EOMES, MIXL1, SOX17 are DE markers (MIXL1 is mesodendoderm marker)
+```{r}
+sample_genes <- c("FOXA2", "GSC", "EOMES", "MIXL1", "SOX17")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
 # Comparisons with the paper 
 
 "A total of 3247 differentially expressed genes were identified in the scRNA-seq time course experiment listed in Additional file 4: Table S3."

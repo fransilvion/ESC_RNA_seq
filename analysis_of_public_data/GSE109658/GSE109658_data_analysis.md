@@ -443,10 +443,10 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 
 ![](GSE109658_data_analysis_files/figure-markdown_github/unnamed-chunk-27-1.png)
 
-Interesting genes, which is regulated by long non-coding RNA DEANR1:
+Interesting genes: - FOXA2, which is regulated by long non-coding RNA DEANR1; - GSC is controlled by DIGIT lncRNA; - EOMES, MIXL1, SOX17 are DE markers (MIXL1 is mesodendoderm marker)
 
 ``` r
-sample_genes <- c("FOXA2")
+sample_genes <- c("FOXA2", "GSC", "EOMES", "MIXL1", "SOX17")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 ```
 
