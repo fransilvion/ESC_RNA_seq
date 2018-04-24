@@ -23,6 +23,7 @@ suppressWarnings(suppressMessages(library(RColorBrewer)))
 suppressWarnings(suppressMessages(library(edgeR)))
 suppressWarnings(suppressMessages(library(readxl)))
 suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressMessages(suppressWarnings(library(ermineR)))
 ```
 
 
@@ -389,5 +390,90 @@ We have `r nrow(upRegulated109658)` upregulated genes and `r nrow(downRegulated1
 ```{r}
 save(upRegulated109658, file="upRegulated109658.Rdata")
 save(downRegulated109658, file="downRegulated109658.Rdata")
+```
+
+# Gene set enrichment analysis of GSE109658
+
+```{r}
+if (!file.exists("GO.xml")) { goToday("GO.xml") }
+
+DEgenes_0h_96h <- topTable(contrastFitEb, number = Inf, coef = "age4vage0")
+
+ggplot(data = DEgenes_0h_96h, aes(x = logFC, y = -log(adj.P.Val), color = (-log(adj.P.Val) > 3)))+
+  scale_colour_manual(name = 'p-value < 0.05', values = setNames(c('red','black'),c(T, F)), labels = c("False", "True"))+
+  geom_point()+
+  geom_vline(xintercept=0)+
+  geom_vline(xintercept=-2)+
+  geom_vline(xintercept=2)+
+  #xlim(-1.5,1.5)+
+  ylab("-log(p-value)")+
+  xlab("logFC")+
+  labs(title="Gene expression differences in 0h and 96h cells, GSE109658")+
+  theme_bw()+
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.border = element_blank(),
+        panel.background = element_blank()) +
+  theme(axis.title.x=element_text(size=12),
+        axis.text.y=element_text(size=12),
+        axis.title.y=element_text(size=14),
+        axis.ticks.x=element_blank(),
+        strip.text.x = element_text(size=14),
+        strip.background = element_rect(colour="white", fill="white"),
+        legend.text=element_text(size=15),
+        legend.title=element_text(size=14))
+```
+```{r}
+ermineInputGeneScores <- DEgenes_0h_96h %>% 
+  rownames_to_column("gene") %>%
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  select(gene, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("gene")
+
+head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
+```
+```{r}
+enrichmentResult <- precRecall(scores = ermineInputGeneScores, 
+                               scoreColumn = 1, # column 1 is the scores 
+                               bigIsBetter = TRUE, # larger logFC should be ranked higher
+                               annotation = "Generic_human", # ask ermineJ to use the Generic_human annotation file (will automatically download)
+                               aspects = "B", # look at only biological processes 
+                               iterations = 10000, # 10K sampling iterations so that results are stable
+                               geneSetDescription = "GO.xml") # use the GO XML file in current directory
+
+enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+
+```{r}
+enrichmentResult$results %>% 
+  select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Biological Process", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+
+```{r fig.width=15, fig.height=10}
+Enrichment <- enrichmentResult$results
+Enrichment$Name <- as.factor(Enrichment$Name)
+
+Enrichment %>% 
+  select(Name, NumGenes, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 5e-2) %>% 
+  head(25) %>% 
+  ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
+             y = NumGenes, fill = CorrectedMFPvalue)) +
+  geom_col() +
+  labs(title = "Biological Processes - GSE75748", 
+       x = "", y = "Number of Genes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip() +
+  theme_light() 
+
 ```
 
