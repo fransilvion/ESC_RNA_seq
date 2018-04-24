@@ -26,6 +26,8 @@ suppressWarnings(suppressMessages(library(RColorBrewer)))
 suppressWarnings(suppressMessages(library(edgeR)))
 suppressWarnings(suppressMessages(library(readxl)))
 suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressWarnings(suppressMessages(library(pheatmap)))
+suppressMessages(suppressWarnings(library(ermineR)))
 ```
 
 Let's read our data into R (GSE75748):
@@ -591,5 +593,194 @@ length(s)
 set.seed(123)
 sample_genes <- sample(s, 4)
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
+
+```{r}
+designMatrix <- model.matrix(~0 + time, metadata_time)
+
+contrastMatrix <- makeContrasts(
+  v96hv0h = time96h - time0h,
+  levels = designMatrix
+)
+
+# keep the fit around as we will need to it for looking at other contrasts later 
+time_course_Fit <- lmFit(after_voom_cpm, designMatrix)
+
+# fit the contrast using the original fitted model
+contrastFit <- contrasts.fit(time_course_Fit, contrastMatrix)
+
+# apply eBayes() for moderated statistics
+contrastFitEb <- eBayes(contrastFit)
+
+time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 2)
+summary(time_course_res)
+```
+```{r}
+upRegulated75748 <- time_course_res %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(v96hv0h == 1)
+
+downRegulated75748 <- time_course_res %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(v96hv0h == -1)
+```
+
+We have `r nrow(upRegulated75748)` upregulated genes and `r nrow(downRegulated75748)` downregulated genes. 
+
+```{r}
+save(upRegulated75748, file="upRegulated75748.Rdata")
+save(downRegulated75748, file="downRegulated75748.Rdata")
+```
+
+#Comparison of up and down regulated genes (4 days v 0 day) in two papers
+
+```{r}
+load("../GSE109658/upRegulated109658.Rdata")
+load("../GSE109658/downRegulated109658.Rdata")
+
+common_upRegulated <- intersect(upRegulated109658$gene, upRegulated75748$gene)
+common_downRegulated <- intersect(downRegulated109658$gene, downRegulated75748$gene)
+```
+
+We have `r length(common_upRegulated)` common upregulated genes and `r length(common_downRegulated)` common downregulated genes. 
+
+```{r}
+#creating an annotation matrix
+prDes <- metadata[order(metadata$time),] #order by time_point
+
+prDes <- prDes %>%
+  filter(time == "0h" | time == "96h")
+
+rownames(prDes) <- prDes$samples
+prDes <- prDes[,-1]
+
+#fixing column order for expression matrix (should be the same as rownames order in prDes)
+common_regulated_genes <- c(common_upRegulated, common_downRegulated)
+
+#topGenesRegulated <- cleaned_log_cpm_df[common_regulated_genes,]
+cl_log_cpm_df <- cleaned_log_cpm_df[, rownames(prDes)]
+#topGenesRegulated <- cleaned_log_cpm_df[, rownames(prDes)]
+topGenesRegulated <- cl_log_cpm_df[common_regulated_genes,]
+#scaling the data (without it in pheatmap specify scale = "row")
+topGenesRegulated <- t(scale(t(topGenesRegulated)))
+
+#creating a heatmap with pheatmap (no clustering because we ordered samples by time point)
+pheatmap(topGenesRegulated, cluster_rows = T, cluster_cols = FALSE, scale = "none", clustering_method = "ward.D2", 
+    clustering_distance_cols = "euclidean", show_colnames = T, show_rownames = FALSE, 
+    main = "Clustering heatmap for top common regulated genes", annotation = prDes[,c("time"), drop=FALSE])
+```
+
+# for CMAP
+
+```{r}
+#not sure here...
+genRef <- topTable(contrastFitEb, number = Inf, p.value=cutoff, lfc=2)
+
+#taking upregulated genes
+referenceUpregulated <- genRef[common_upRegulated,]
+referenceUpregulated <-  referenceUpregulated[with(referenceUpregulated, order(adj.P.Val)), ]
+
+#taking downregulated genes
+referenceDownregulated <- genRef[common_downRegulated,]
+referenceDownregulated <-  referenceDownregulated[with(referenceDownregulated, order(adj.P.Val)), ]
+
+#take 150 upregulated genes
+first_up <- rownames(referenceUpregulated)[1:150]
+fileConn<-file("referenceUpregulated75748.txt")
+writeLines(first_up, fileConn)
+close(fileConn)
+
+#take 50 downregulated genes
+first_down <- rownames(referenceDownregulated)[1:50]
+fileConn2<-file("referenceDownregulated75748.txt")
+writeLines(first_down, fileConn2)
+close(fileConn2)
+```
+
+# Gene set enrichment analysis of GSE75748
+
+```{r}
+if (!file.exists("GO.xml")) { goToday("GO.xml") }
+
+DEgenes_0h_96h <- topTable(contrastFitEb, number = Inf)
+
+ggplot(data = DEgenes_0h_96h, aes(x = logFC, y = -log(adj.P.Val), color = (-log(adj.P.Val) > 3)))+
+  scale_colour_manual(name = 'p-value < 0.05', values = setNames(c('red','black'),c(T, F)), labels = c("False", "True"))+
+  geom_point()+
+  geom_vline(xintercept=0)+
+  geom_vline(xintercept=-2)+
+  geom_vline(xintercept=2)+
+  #xlim(-1.5,1.5)+
+  ylab("-log(p-value)")+
+  xlab("logFC")+
+  labs(title="Gene expression differences in 0h and 96h cells, GSE75748")+
+  theme_bw()+
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.border = element_blank(),
+        panel.background = element_blank()) +
+  theme(axis.title.x=element_text(size=12),
+        axis.text.y=element_text(size=12),
+        axis.title.y=element_text(size=14),
+        axis.ticks.x=element_blank(),
+        strip.text.x = element_text(size=14),
+        strip.background = element_rect(colour="white", fill="white"),
+        legend.text=element_text(size=15),
+        legend.title=element_text(size=14))
+```
+```{r}
+ermineInputGeneScores <- DEgenes_0h_96h %>% 
+  rownames_to_column("gene") %>%
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  select(gene, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("gene")
+
+head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
+```
+```{r}
+enrichmentResult <- precRecall(scores = ermineInputGeneScores, 
+                               scoreColumn = 1, # column 1 is the scores 
+                               bigIsBetter = TRUE, # larger logFC should be ranked higher
+                               annotation = "Generic_human", # ask ermineJ to use the Generic_human annotation file (will automatically download)
+                               aspects = "B", # look at only biological processes 
+                               iterations = 10000, # 10K sampling iterations so that results are stable
+                               geneSetDescription = "GO.xml") # use the GO XML file in current directory
+
+enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+
+```{r}
+enrichmentResult$results %>% 
+  select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Biological Process", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+
+```{r fig.width=15, fig.height=10}
+Enrichment <- enrichmentResult$results
+Enrichment$Name <- as.factor(Enrichment$Name)
+
+Enrichment %>% 
+  select(Name, NumGenes, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 5e-2) %>% 
+  head(25) %>% 
+  ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
+             y = NumGenes, fill = CorrectedMFPvalue)) +
+  geom_col() +
+  labs(title = "Biological Processes - GSE75748", 
+       x = "", y = "Number of Genes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip() +
+  theme_light() 
+
 ```
 
