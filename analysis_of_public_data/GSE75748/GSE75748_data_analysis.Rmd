@@ -11,6 +11,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Here we analyze gene expression data from [this paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1033-x). Some analysis steps are made according to [this workflow article](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4937821/).
 
+Experimental protocol description: 
+
+For DE cells, H1 cells were seeded in E8 with BMP4 (5 ng/mL), Activin A (25 ng/mL), and CHIR99021 (1 μM) for the first
+two days, then withdraw CHIR99021 for the remaining period of differentiation.
+
 ```{r, echo=FALSE}
 library(knitr)
 suppressWarnings(suppressMessages(library(tidyverse)))
@@ -130,7 +135,9 @@ str(metadata)
 
 Our primary goal here is to analyze bulk_time_course data (each stage with the next stage, step-by-step).
 
-Deleting low-expressed genes (CPM > 3). We don't want to filter out a gene that is highly expressed in one group, but lowly expressed in another, because that gene may be biologically interesting! So, we identify the smallest number of samples that could be part of one group (3), and make sure we don't remove genes that are expressed in more than that number:
+Deleting low-expressed genes. We don't want to filter out a gene that is highly expressed in one group, but lowly expressed in another, because that gene may be biologically interesting! So, we identify the smallest number of samples that could be part of one group (3), and make sure we don't remove genes that are expressed in more than that number.
+
+Usually one will filter genes with 10-15 read counts. We have 12e6 as a lowest library size. 10 reads in such library size will be: 10/12e6 *1e6 = 0.83. It is aproximately 1 cpm (the filtering is to this threshold).
 ```{r}
 #first let's create a edgeR DGElist object
 bulk_time_course_ec <- as.matrix(bulk_time_course_ec)
@@ -145,16 +152,18 @@ rownames(bulk_time_course_ec) <- rows
 DGE_bulk_time_course_ec <- DGEList(counts = bulk_time_course_ec) 
 
 cpm <- cpm(DGE_bulk_time_course_ec)
-keep.exprs <-rowSums(cpm > 5) >= 3
+keep.exprs <-rowSums(cpm > 5) >= 1
 
 DGE_bulk_time_course_ec <- DGE_bulk_time_course_ec[keep.exprs,,]
 
 dim(DGE_bulk_time_course_ec)
 ```
 
-Very useful insight about [the filtering step](https://support.bioconductor.org/p/77178/).
+Very useful insight about [the filtering step](https://support.bioconductor.org/p/77178/):
 
-Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (according to GEO query). Thus, we need to perform a library size normalization using edgeR:
+"The most than can be done is to eliminate genes that cannot possibly be expressed in all the libraries for any condition, and that is exactly what the suggested filter does."
+
+Our data here is in gene expected counts that were calculated using RSEM 1.2.3 (according to GEO query, https://biowize.wordpress.com/2014/03/04/understanding-rsem-raw-read-counts-vs-expected-counts/). Thus, we need to perform a library size normalization using edgeR:
 
 ```{r}
 normalized_factors_expression <- calcNormFactors(DGE_bulk_time_course_ec, method = "TMM") #calculation of scaling factors (for library size)
@@ -213,7 +222,11 @@ meltedLogedBultTimeCourseEc %>%
 
 Looks much better now!
 ```{r}
-plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
+nsamples <- ncol(cleaned_log_cpm_df[,-1])
+group <- metadata_time$time
+col <- brewer.pal(nsamples, "Paired")
+
+plotMDS(cleaned_log_cpm_df[,-1], cex=1.5, labels = group, col = col)
 ```
 
 It's clear that time ponts 0h, 12h, 24h and 36h are well (mostly) separated from each other and 72h with 96h, however the last group (72 and 96) is clustered closer together, thus we don't expect to see much DE genes in these groups.
@@ -349,6 +362,11 @@ let's build those genes that according to the paper are DE in 24v12 transition:
 sample_genes <- c("T", "CDX1", "MSX2")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
+```{r}
+#other markers for ME (primitive streak)
+sample_genes <- c("CDH2", "PDGFRA", "FGF4", "DKK4")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
+```
 
 ## COMMENTS 
 - paper reports that CDX1, MSX2 and T are over expressed from 12 to 24h transition. I see only T and CDX1 (p-value cutoff 5e-02, FDR)
@@ -375,7 +393,7 @@ Now let's look at key DE markers CXCR4, SOX17, HNF1B, KIT, and KRT19:
 sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
-It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19 and HNF1B did not change so much, but KRT19 remained highly expressed, while HNF1B remained to be down-regulated.
+It's clear that CXCR4, SOX17 and KIT are upregulated at 96h, expression of KRT19 did not change so much, but KRT19 remained highly expressed.
 
 Interesting genes:
 - FOXA2, which is regulated by long non-coding RNA DEANR1 (is low filtered here);
