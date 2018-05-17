@@ -29,6 +29,8 @@ suppressMessages(suppressWarnings(library(ermineR)))
 
 Here we analyze gene expression data from [this paper.](https://www.ncbi.nlm.nih.gov/pubmed/29427839). 
 
+Differentiation was started with activin A and CHIR99021 for 24 hours, then activin A only for 4 days. Base differentiation medium is Advanced RPMI 1640.
+
 ```{r}
 if (file.exists("GSE109658.Rdata")) {
     # if previously downloaded
@@ -106,7 +108,7 @@ expr_data_counts <- expr_data_counts[!duplicated(expr_data_counts),]
 dim(expr_data_counts)
 ```
 
-
+Usually one will filter genes with 10-15 read counts. We have 54723184 as a lowest library size. 10 reads in such library size will be: 10/54723184 *1e6 = 0.18. It is aproximately 0.2 cpm (the filtering is to this threshold) (let's go with 0.5 for voom)
 ```{r}
 #first let's create a edgeR DGElist object
 rownams <- expr_data_counts$GENE
@@ -118,7 +120,7 @@ rownames(exp_data_counts_matrix) <- rownams
 DGE_bulk_time_course_ec <- DGEList(counts = exp_data_counts_matrix) 
 
 cpm <- cpm(DGE_bulk_time_course_ec)
-keep.exprs <-rowSums(cpm > 1) >= 3 #the smallest group size: AB_1-0, AB_2-0, AB_4-0
+keep.exprs <-rowSums(cpm > 0.5) >= 3 
 
 DGE_bulk_time_course_ec <- DGE_bulk_time_course_ec[keep.exprs,,]
 
@@ -154,6 +156,10 @@ head(designMatrix, 10) %>% kable()
 ```
 
 We can apply voom (which usually takes count data as an input and transforms them to logCPM) that estimates the mean-variance relationship and uses this to compute appropriate observation-level weights. The data are then ready for linear modelling.
+
+"Moreover,  the  voom-plot  provides  a  visual  check  on  the  level  of  filtering  performed  upstream.  If  filtering  of
+lowly-expressed  genes  is  insufficient,  a  drop  in  variance  levels  can  be  observed  at  the  low  end  of  the  expression
+scale  due  to  very  small  counts.  If  this  is  observed,  one  should  return  to  the  earlier  filtering  step  and  increase  the expression threshold applied to the dataset."
 ```{r}
 after_voom_cpm <- voom(normalized_factors_expression, designMatrix, plot=TRUE)
 ```
@@ -271,6 +277,11 @@ Comparisons to key genes from previous analysis.
 Mesodendoderm markers:
 ```{r}
 sample_genes <- c("T", "CDX1", "MSX2")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+```{r}
+#other mesodendoderm factors:
+sample_genes <- c("CDH2", "PDGFRA", "FGF4", "DKK4")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
 ```
 

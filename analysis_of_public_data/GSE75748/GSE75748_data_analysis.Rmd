@@ -152,7 +152,7 @@ rownames(bulk_time_course_ec) <- rows
 DGE_bulk_time_course_ec <- DGEList(counts = bulk_time_course_ec) 
 
 cpm <- cpm(DGE_bulk_time_course_ec)
-keep.exprs <-rowSums(cpm > 5) >= 1
+keep.exprs <-rowSums(cpm > 1) >= 3
 
 DGE_bulk_time_course_ec <- DGE_bulk_time_course_ec[keep.exprs,,]
 
@@ -610,6 +610,7 @@ sample_genes <- sample(s, 4)
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
 
+#Compairing stem cell vs DE
 ```{r}
 designMatrix <- model.matrix(~0 + time, metadata_time)
 
