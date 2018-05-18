@@ -3,126 +3,20 @@ GSE52158 data analysis
 German Novakovskiy
 May 17, 2018
 
-Data analysis of microarray data (Affymetrix Human Genome U133 Plus 2.0 Array) from that paper (PMID: 24412311)
+Data analysis of microarray data (Affymetrix Human Genome U133 Plus 2.0 Array, GPL570 platform) from that paper (PMID: 24412311)
 
 ``` r
-library(limma)
-library(ggplot2)
-library(dplyr)
-```
-
-    ## 
-    ## Attaching package: 'dplyr'
-
-    ## The following objects are masked from 'package:stats':
-    ## 
-    ##     filter, lag
-
-    ## The following objects are masked from 'package:base':
-    ## 
-    ##     intersect, setdiff, setequal, union
-
-``` r
-library(affy)
-```
-
-    ## Loading required package: BiocGenerics
-
-    ## Loading required package: parallel
-
-    ## 
-    ## Attaching package: 'BiocGenerics'
-
-    ## The following objects are masked from 'package:parallel':
-    ## 
-    ##     clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
-    ##     clusterExport, clusterMap, parApply, parCapply, parLapply,
-    ##     parLapplyLB, parRapply, parSapply, parSapplyLB
-
-    ## The following objects are masked from 'package:dplyr':
-    ## 
-    ##     combine, intersect, setdiff, union
-
-    ## The following object is masked from 'package:limma':
-    ## 
-    ##     plotMA
-
-    ## The following objects are masked from 'package:stats':
-    ## 
-    ##     IQR, mad, sd, var, xtabs
-
-    ## The following objects are masked from 'package:base':
-    ## 
-    ##     anyDuplicated, append, as.data.frame, cbind, colMeans,
-    ##     colnames, colSums, do.call, duplicated, eval, evalq, Filter,
-    ##     Find, get, grep, grepl, intersect, is.unsorted, lapply,
-    ##     lengths, Map, mapply, match, mget, order, paste, pmax,
-    ##     pmax.int, pmin, pmin.int, Position, rank, rbind, Reduce,
-    ##     rowMeans, rownames, rowSums, sapply, setdiff, sort, table,
-    ##     tapply, union, unique, unsplit, which, which.max, which.min
-
-    ## Loading required package: Biobase
-
-    ## Welcome to Bioconductor
-    ## 
-    ##     Vignettes contain introductory material; view with
-    ##     'browseVignettes()'. To cite Bioconductor, see
-    ##     'citation("Biobase")', and for packages 'citation("pkgname")'.
-
-``` r
-library(hgu133plus2.db)
-```
-
-    ## Loading required package: AnnotationDbi
-
-    ## Loading required package: stats4
-
-    ## Loading required package: IRanges
-
-    ## Loading required package: S4Vectors
-
-    ## 
-    ## Attaching package: 'S4Vectors'
-
-    ## The following objects are masked from 'package:dplyr':
-    ## 
-    ##     first, rename
-
-    ## The following object is masked from 'package:base':
-    ## 
-    ##     expand.grid
-
-    ## 
-    ## Attaching package: 'IRanges'
-
-    ## The following objects are masked from 'package:dplyr':
-    ## 
-    ##     collapse, desc, slice
-
-    ## 
-    ## Attaching package: 'AnnotationDbi'
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     select
-
-    ## Loading required package: org.Hs.eg.db
-
-    ## 
-
-    ## 
-
-``` r
-library(tibble)
-library(GEOquery)
-```
-
-    ## Setting options('download.file.method.GEOquery'='auto')
-
-    ## Setting options('GEOquery.inmemory.gpl'=FALSE)
-
-``` r
-library(reshape2)
+suppressMessages(suppressWarnings(library(limma)))
+suppressMessages(suppressWarnings(library(ggplot2)))
+suppressMessages(suppressWarnings(library(dplyr)))
+suppressMessages(suppressWarnings(library(affy)))
+suppressMessages(suppressWarnings(library(hgu133plus2.db)))
+suppressMessages(suppressWarnings(library(tibble)))
+suppressMessages(suppressWarnings(library(GEOquery)))
+suppressMessages(suppressWarnings(library(reshape2)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(knitr)))
+suppressMessages(suppressWarnings(library(forcats)))
 ```
 
 Loading the data:
@@ -323,3 +217,132 @@ downRegulated52158 <- down_genes
 save(upRegulated52158, file="upRegulated52158.Rdata")
 save(downRegulated52158, file="downRegulated52158.Rdata")
 ```
+
+Gene set enrichment analysis of GSE75748
+========================================
+
+``` r
+topProbesDEAll <- topTable(cellTypeFitEb, coef = "cell_typeDE", number = Inf)
+
+x <- hgu133plus2SYMBOL
+# Get the probe identifiers - gene symbol mappings
+mapped_probes <- mappedkeys(x)
+# Convert to a dataframe
+genesym.probeid <- as.data.frame(x[mapped_probes])
+head(genesym.probeid)
+```
+
+    ##    probe_id symbol
+    ## 1   1053_at   RFC2
+    ## 2    117_at  HSPA6
+    ## 3    121_at   PAX8
+    ## 4 1255_g_at GUCA1A
+    ## 5   1316_at   THRA
+    ## 6   1320_at PTPN21
+
+``` r
+probes_to_genes <- genesym.probeid %>%
+  filter(probe_id %in% rownames(topProbesDEAll))
+
+topProbes <- topProbesDEAll %>%
+  rownames_to_column("probes") %>%
+  filter(probes %in% probes_to_genes$probe_id)
+
+probes_to_genes <- probes_to_genes %>% column_to_rownames('probe_id')
+symbs <- probes_to_genes[topProbes$probes,]
+topProbes$Symbol <- symbs
+
+ermineInputProbeScores <- topProbes %>% 
+  #as.data.frame() %>%
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(probes, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("probes")
+
+head(ermineInputProbeScores, 10)# %>% kable() # print the first few rows
+```
+
+    ##             absolute_logFC
+    ## 219465_at         4.717422
+    ## 205402_x_at       4.631256
+    ## 219466_s_at       4.505739
+    ## 230943_at         4.429966
+    ## 214053_at         4.363262
+    ## 219993_at         4.213083
+    ## 210002_at         4.139878
+    ## 207659_s_at       4.098615
+    ## 228964_at         3.843296
+    ## 221019_s_at       3.815424
+
+``` r
+enrichmentResult <- precRecall(scores = ermineInputProbeScores, 
+                               scoreColumn = 1, # column 1 is the scores 
+                               bigIsBetter = TRUE, # larger logFC should be ranked higher
+                               annotation = "GPL570", 
+                               aspects = "B", # look at only biological processes 
+                               iterations = 10000, # 10K sampling iterations so that results are stable
+                               geneSetDescription = "../GSE109658/GO.xml") # use the GO XML file in current directory
+
+enrichmentResult$results %>% arrange(MFPvalue) %>% head(10)
+```
+
+    ## # A tibble: 10 x 12
+    ##    Name         ID    NumProbes NumGenes RawScore     Pval CorrectedPvalue
+    ##    <chr>        <chr>     <int>    <int>    <dbl>    <dbl>           <dbl>
+    ##  1 formation o… GO:0…       213       90   0.0392 1.00e-12  0.00000000287 
+    ##  2 endoderm fo… GO:0…        93       42   0.0613 1.00e-12  0.00000000144 
+    ##  3 gastrulation GO:0…       278      127   0.0562 1.00e-12  0.000000000574
+    ##  4 endoderm de… GO:0…       136       64   0.0551 1.00e-12  0.000000000479
+    ##  5 anterior/po… GO:0…       282      131   0.0398 1.00e-12  0.000000000359
+    ##  6 regulation … GO:0…       222       92   0.0364 1.00e-12  0.000000000319
+    ##  7 negative re… GO:0…       337      173   0.0397 1.00e-12  0.000000000287
+    ##  8 cholesterol… GO:0…        65       36   0.0397 1.00e-12  0.000000000261
+    ##  9 endodermal … GO:0…        75       33   0.0489 1.00e-12  0.000000000221
+    ## 10 response to… GO:0…       126       57   0.0392 1.00e-12  0.000000000205
+    ## # ... with 5 more variables: MFPvalue <dbl>, CorrectedMFPvalue <dbl>,
+    ## #   Multifunctionality <dbl>, `Same as` <chr>, GeneMembers <chr>
+
+``` r
+enrichmentResult$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Biological Process", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+
+| Biological Process                                        | Corrected p-value | Corrected MF p-value |
+|:----------------------------------------------------------|:------------------|:---------------------|
+| regulation of cardiocyte differentiation                  | 0                 | 0                    |
+| positive regulation of muscle tissue development          | 0                 | 0                    |
+| regulation of muscle tissue development                   | 0                 | 0                    |
+| animal organ formation                                    | 0                 | 0                    |
+| regulation of muscle organ development                    | 0                 | 0                    |
+| positive regulation of striated muscle tissue development | 0                 | 0                    |
+| positive regulation of muscle organ development           | 0                 | 0                    |
+| cell fate commitment                                      | 0                 | 0                    |
+| response to estrogen                                      | 0                 | 0                    |
+| endodermal cell differentiation                           | 0                 | 0                    |
+
+``` r
+Enrichment <- enrichmentResult$results
+Enrichment$Name <- as.factor(Enrichment$Name)
+
+Enrichment %>% 
+  dplyr::select(Name, NumGenes, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 5e-2) %>% 
+  head(25) %>% 
+  ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
+             y = NumGenes, fill = CorrectedMFPvalue)) +
+  geom_col() +
+  labs(title = "Biological Processes - GSE75748", 
+       x = "", y = "Number of Genes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip() +
+  theme_light() 
+```
+
+![](GSE52158_data_analysis_files/figure-markdown_github/unnamed-chunk-18-1.png)

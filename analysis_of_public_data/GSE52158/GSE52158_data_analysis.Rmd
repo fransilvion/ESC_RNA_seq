@@ -9,16 +9,19 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Data analysis of microarray data (Affymetrix Human Genome U133 Plus 2.0 Array) from that paper (PMID: 24412311)
+Data analysis of microarray data (Affymetrix Human Genome U133 Plus 2.0 Array, GPL570 platform) from that paper (PMID: 24412311)
 ```{r}
-library(limma)
-library(ggplot2)
-library(dplyr)
-library(affy)
-library(hgu133plus2.db)
-library(tibble)
-library(GEOquery)
-library(reshape2)
+suppressMessages(suppressWarnings(library(limma)))
+suppressMessages(suppressWarnings(library(ggplot2)))
+suppressMessages(suppressWarnings(library(dplyr)))
+suppressMessages(suppressWarnings(library(affy)))
+suppressMessages(suppressWarnings(library(hgu133plus2.db)))
+suppressMessages(suppressWarnings(library(tibble)))
+suppressMessages(suppressWarnings(library(GEOquery)))
+suppressMessages(suppressWarnings(library(reshape2)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(knitr)))
+suppressMessages(suppressWarnings(library(forcats)))
 ```
 
 Loading the data:
@@ -142,5 +145,78 @@ upRegulated52158 <- up_genes
 downRegulated52158 <- down_genes
 save(upRegulated52158, file="upRegulated52158.Rdata")
 save(downRegulated52158, file="downRegulated52158.Rdata")
+```
+
+# Gene set enrichment analysis of GSE75748
+
+```{r}
+topProbesDEAll <- topTable(cellTypeFitEb, coef = "cell_typeDE", number = Inf)
+
+x <- hgu133plus2SYMBOL
+# Get the probe identifiers - gene symbol mappings
+mapped_probes <- mappedkeys(x)
+# Convert to a dataframe
+genesym.probeid <- as.data.frame(x[mapped_probes])
+head(genesym.probeid)
+```
+```{r}
+probes_to_genes <- genesym.probeid %>%
+  filter(probe_id %in% rownames(topProbesDEAll))
+
+topProbes <- topProbesDEAll %>%
+  rownames_to_column("probes") %>%
+  filter(probes %in% probes_to_genes$probe_id)
+
+probes_to_genes <- probes_to_genes %>% column_to_rownames('probe_id')
+symbs <- probes_to_genes[topProbes$probes,]
+topProbes$Symbol <- symbs
+
+ermineInputProbeScores <- topProbes %>% 
+  #as.data.frame() %>%
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(probes, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("probes")
+
+head(ermineInputProbeScores, 10)# %>% kable() # print the first few rows
+```
+```{r}
+enrichmentResult <- precRecall(scores = ermineInputProbeScores, 
+                               scoreColumn = 1, # column 1 is the scores 
+                               bigIsBetter = TRUE, # larger logFC should be ranked higher
+                               annotation = "GPL570", 
+                               aspects = "B", # look at only biological processes 
+                               iterations = 10000, # 10K sampling iterations so that results are stable
+                               geneSetDescription = "../GSE109658/GO.xml") # use the GO XML file in current directory
+
+enrichmentResult$results %>% arrange(MFPvalue) %>% head(10)
+```
+```{r}
+enrichmentResult$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Biological Process", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r fig.width=15, fig.height=10}
+Enrichment <- enrichmentResult$results
+Enrichment$Name <- as.factor(Enrichment$Name)
+
+Enrichment %>% 
+  dplyr::select(Name, NumGenes, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 5e-2) %>% 
+  head(25) %>% 
+  ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
+             y = NumGenes, fill = CorrectedMFPvalue)) +
+  geom_col() +
+  labs(title = "Biological Processes - GSE75748", 
+       x = "", y = "Number of Genes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip() +
+  theme_light() 
 ```
 
