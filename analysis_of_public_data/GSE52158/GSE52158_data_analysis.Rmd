@@ -138,7 +138,9 @@ down_golden_list[down_golden_list %in% down_genes]
 down_golden_list[!down_golden_list %in% down_genes]
 ```
 ```{r}
-save(up_genes, file="upRegulated52158.Rdata")
-save(down_genes, file="downRegulated52158.Rdata")
+upRegulated52158 <- up_genes
+downRegulated52158 <- down_genes
+save(upRegulated52158, file="upRegulated52158.Rdata")
+save(downRegulated52158, file="downRegulated52158.Rdata")
 ```
 
