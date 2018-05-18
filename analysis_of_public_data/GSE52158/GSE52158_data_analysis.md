@@ -254,27 +254,27 @@ topProbes$Symbol <- symbs
 
 ermineInputProbeScores <- topProbes %>% 
   #as.data.frame() %>%
-  mutate(absolute_logFC = abs(logFC)) %>% 
-  dplyr::select(probes, absolute_logFC) %>% 
+  #mutate(absolute_logFC = logFC) %>% 
+  dplyr::select(probes, logFC) %>% 
   na.omit() %>% 
   as.data.frame() %>% 
-  arrange(desc(absolute_logFC)) %>% 
+  arrange(desc(logFC)) %>% 
   column_to_rownames("probes")
 
 head(ermineInputProbeScores, 10)# %>% kable() # print the first few rows
 ```
 
-    ##             absolute_logFC
-    ## 219465_at         4.717422
-    ## 205402_x_at       4.631256
-    ## 219466_s_at       4.505739
-    ## 230943_at         4.429966
-    ## 214053_at         4.363262
-    ## 219993_at         4.213083
-    ## 210002_at         4.139878
-    ## 207659_s_at       4.098615
-    ## 228964_at         3.843296
-    ## 221019_s_at       3.815424
+    ##                logFC
+    ## 219465_at   4.717422
+    ## 205402_x_at 4.631256
+    ## 219466_s_at 4.505739
+    ## 230943_at   4.429966
+    ## 214053_at   4.363262
+    ## 219993_at   4.213083
+    ## 210002_at   4.139878
+    ## 207659_s_at 4.098615
+    ## 228964_at   3.843296
+    ## 221019_s_at 3.815424
 
 ``` r
 enrichmentResult <- precRecall(scores = ermineInputProbeScores, 
@@ -292,15 +292,15 @@ enrichmentResult$results %>% arrange(MFPvalue) %>% head(10)
     ##    Name         ID    NumProbes NumGenes RawScore     Pval CorrectedPvalue
     ##    <chr>        <chr>     <int>    <int>    <dbl>    <dbl>           <dbl>
     ##  1 formation o… GO:0…       213       90   0.0392 1.00e-12  0.00000000287 
-    ##  2 endoderm fo… GO:0…        93       42   0.0613 1.00e-12  0.00000000144 
-    ##  3 gastrulation GO:0…       278      127   0.0562 1.00e-12  0.000000000574
-    ##  4 endoderm de… GO:0…       136       64   0.0551 1.00e-12  0.000000000479
-    ##  5 anterior/po… GO:0…       282      131   0.0398 1.00e-12  0.000000000359
-    ##  6 regulation … GO:0…       222       92   0.0364 1.00e-12  0.000000000319
-    ##  7 negative re… GO:0…       337      173   0.0397 1.00e-12  0.000000000287
-    ##  8 cholesterol… GO:0…        65       36   0.0397 1.00e-12  0.000000000261
-    ##  9 endodermal … GO:0…        75       33   0.0489 1.00e-12  0.000000000221
-    ## 10 response to… GO:0…       126       57   0.0392 1.00e-12  0.000000000205
+    ##  2 endoderm fo… GO:0…        93       42   0.0616 1.00e-12  0.00000000144 
+    ##  3 gastrulation GO:0…       278      127   0.0584 1.00e-12  0.000000000957
+    ##  4 endoderm de… GO:0…       136       64   0.0552 1.00e-12  0.000000000718
+    ##  5 anterior/po… GO:0…       282      131   0.0424 1.00e-12  0.000000000574
+    ##  6 regulation … GO:0…       222       92   0.0313 1.00e-12  0.000000000410
+    ##  7 endodermal … GO:0…        75       33   0.0478 1.00e-12  0.000000000287
+    ##  8 response to… GO:0…       126       57   0.0381 1.00e-12  0.000000000239
+    ##  9 cell fate c… GO:0…       349      150   0.0422 1.00e-12  0.000000000221
+    ## 10 positive re… GO:0…       119       49   0.0384 1.00e-12  0.000000000205
     ## # ... with 5 more variables: MFPvalue <dbl>, CorrectedMFPvalue <dbl>,
     ## #   Multifunctionality <dbl>, `Same as` <chr>, GeneMembers <chr>
 
@@ -317,14 +317,14 @@ enrichmentResult$results %>%
 |:----------------------------------------------------------|:------------------|:---------------------|
 | regulation of cardiocyte differentiation                  | 0                 | 0                    |
 | positive regulation of muscle tissue development          | 0                 | 0                    |
-| regulation of muscle tissue development                   | 0                 | 0                    |
-| animal organ formation                                    | 0                 | 0                    |
-| regulation of muscle organ development                    | 0                 | 0                    |
+| stem cell differentiation                                 | 0                 | 0                    |
 | positive regulation of striated muscle tissue development | 0                 | 0                    |
 | positive regulation of muscle organ development           | 0                 | 0                    |
 | cell fate commitment                                      | 0                 | 0                    |
 | response to estrogen                                      | 0                 | 0                    |
 | endodermal cell differentiation                           | 0                 | 0                    |
+| regulation of striated muscle tissue development          | 0                 | 0                    |
+| anterior/posterior pattern specification                  | 0                 | 0                    |
 
 ``` r
 Enrichment <- enrichmentResult$results
@@ -338,7 +338,7 @@ Enrichment %>%
   ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
              y = NumGenes, fill = CorrectedMFPvalue)) +
   geom_col() +
-  labs(title = "Biological Processes - GSE75748", 
+  labs(title = "Biological Processes - GSE52158", 
        x = "", y = "Number of Genes") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   coord_flip() +

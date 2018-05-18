@@ -1054,6 +1054,8 @@ Comparison of up and down regulated genes (4 days v 0 day) in two papers
 ``` r
 load("../GSE109658/upRegulated109658.Rdata")
 load("../GSE109658/downRegulated109658.Rdata")
+load("../../allUpRegulated.Rdata")
+load("../../allDownRegulated.Rdata")
 
 common_upRegulated <- intersect(upRegulated109658$gene, upRegulated75748$gene)
 common_downRegulated <- intersect(downRegulated109658$gene, downRegulated75748$gene)
@@ -1072,7 +1074,8 @@ rownames(prDes) <- prDes$samples
 prDes <- prDes[,-1]
 
 #fixing column order for expression matrix (should be the same as rownames order in prDes)
-common_regulated_genes <- c(common_upRegulated, common_downRegulated)
+#common_regulated_genes <- c(common_upRegulated, common_downRegulated)
+common_regulated_genes <- c(all_upRegulated, all_downRegulated)
 
 #topGenesRegulated <- cleaned_log_cpm_df[common_regulated_genes,]
 cl_log_cpm_df <- cleaned_log_cpm_df[, rownames(prDes)]
@@ -1104,15 +1107,15 @@ for CMAP (top 150 from up and 150 from down)
 
 ``` r
 #not sure here...
-genRef <- topTable(contrastFitEb, number = Inf, p.value=cutoff, lfc=2)
+genRef <- topTable(contrastFitEb, number = Inf, p.value=cutoff, lfc=1)
 
 #taking upregulated genes
-referenceUpregulated <- genRef[common_upRegulated,]
+referenceUpregulated <- genRef[all_upRegulated,]
 referenceUpregulated <-  referenceUpregulated[with(referenceUpregulated, order(adj.P.Val)), ]
 referenceUpregulatedLogSorted <- referenceUpregulated[with(referenceUpregulated, order(logFC, decreasing = T)), ]
 
 #taking downregulated genes
-referenceDownregulated <- genRef[common_downRegulated,]
+referenceDownregulated <- genRef[all_downRegulated,]
 referenceDownregulated <-  referenceDownregulated[with(referenceDownregulated, order(adj.P.Val)), ]
 referenceDownregulatedLogSorted <- referenceDownregulated[with(referenceDownregulated, order(logFC)), ]
 
@@ -1129,15 +1132,54 @@ writeLines(first_down, fileConn2)
 close(fileConn2)
 
 #take 150 upregulated genes (by logFC)
-first_up <- rownames(referenceUpregulatedLogSorted)[1:150]
+first_up <- rownames(referenceUpregulatedLogSorted)#[1:150]
 fileConn<-file("~/Papers/CMAP/topCommonUpRegulatedLogSorted.grp")
 writeLines(first_up, fileConn)
 close(fileConn)
 
 #take 150 downregulated genes (by logFC)
-first_down <- rownames(referenceDownregulatedLogSorted)[1:150]
+first_down <- rownames(referenceDownregulatedLogSorted)#[1:150]
 fileConn2<-file("~/Papers/CMAP/topCommonDownRegulatedLogSorted.grp")
 writeLines(first_down, fileConn2)
+close(fileConn2)
+```
+
+To array probes:
+
+``` r
+x <- hgu133aSYMBOL
+# Get the probe identifiers - gene symbol mappings
+mapped_probes <- mappedkeys(x)
+# Convert to a dataframe
+genesym.probeid <- as.data.frame(x[mapped_probes])
+head(genesym.probeid)
+```
+
+    ##    probe_id symbol
+    ## 1   1053_at   RFC2
+    ## 2    117_at  HSPA6
+    ## 3    121_at   PAX8
+    ## 4 1255_g_at GUCA1A
+    ## 5   1316_at   THRA
+    ## 6   1320_at PTPN21
+
+``` r
+probe_up <- genesym.probeid %>%
+  filter(symbol %in% first_up) 
+
+probe_up <- probe_up$probe_id
+
+probe_down <- genesym.probeid %>%
+  filter(symbol %in% first_down) 
+
+probe_down <- probe_down$probe_id
+
+fileConn2<-file("~/Papers/CMAP/topCommonDownRegulatedLogSortedProbes.grp")
+writeLines(probe_down, fileConn2)
+close(fileConn2)
+
+fileConn2<-file("~/Papers/CMAP/topCommonUpRegulatedLogSortedProbes.grp")
+writeLines(probe_up, fileConn2)
 close(fileConn2)
 ```
 
@@ -1175,33 +1217,33 @@ ggplot(data = DEgenes_0h_96h, aes(x = logFC, y = -log(adj.P.Val), color = (-log(
         legend.title=element_text(size=14))
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-75-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-77-1.png)
 
 ``` r
 ermineInputGeneScores <- DEgenes_0h_96h %>% 
   rownames_to_column("gene") %>%
-  mutate(absolute_logFC = abs(logFC)) %>% 
-  select(gene, absolute_logFC) %>% 
+  #mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, logFC) %>% 
   na.omit() %>% 
   as.data.frame() %>% 
-  arrange(desc(absolute_logFC)) %>% 
+  arrange(desc(logFC)) %>% 
   column_to_rownames("gene")
 
 head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
 ```
 
-|        |  absolute\_logFC|
-|--------|----------------:|
-| HAPLN1 |        11.784025|
-| CER1   |        11.705976|
-| ERBB4  |        11.489550|
-| COL3A1 |        11.315344|
-| EOMES  |        10.183182|
-| CRHBP  |        10.167101|
-| COL5A1 |        10.017074|
-| GATA6  |         9.741286|
-| DKK4   |         9.730866|
-| LUM    |         9.698491|
+|        |      logFC|
+|--------|----------:|
+| HAPLN1 |  11.784025|
+| CER1   |  11.705976|
+| ERBB4  |  11.489550|
+| COL3A1 |  11.315344|
+| EOMES  |  10.183182|
+| CRHBP  |  10.167101|
+| COL5A1 |  10.017074|
+| GATA6  |   9.741286|
+| DKK4   |   9.730866|
+| LUM    |   9.698491|
 
 ``` r
 enrichmentResult <- precRecall(scores = ermineInputGeneScores, 
@@ -1215,22 +1257,22 @@ enrichmentResult <- precRecall(scores = ermineInputGeneScores,
 enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
 ```
 
-| Name                                     | ID           |  NumProbes|  NumGenes|   RawScore|  Pval|  CorrectedPvalue|  MFPvalue|  CorrectedMFPvalue|  Multifunctionality| Same as | GeneMembers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-|:-----------------------------------------|:-------------|----------:|---------:|----------:|-----:|----------------:|---------:|------------------:|-------------------:|:--------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| formation of primary germ layer          | <GO:0001704> |        101|       101|  0.0414432|     0|                0|         0|                  0|               0.984| NA      | ACVR1|ARID1A|ATOH8|AXIN1|BMP4|BMP7|BMPR1A|BMPR2|CDC73|CHRD|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CRB2|CTNNB1|CTR9|DKK1|DUSP1|DUSP2|DUSP4|DUSP5|EOMES|EPB41L5|ETS2|ETV2|EXOC4|EXT2|EYA1|EYA2|FGFR2|FN1|FOXC1|FOXC2|FOXF1|GATA6|GPI|HAND1|HMGA2|HOXA11|HSBP1|ITGA2|ITGA3|ITGA4|ITGA5|ITGA7|ITGA8|ITGAV|ITGB1|ITGB2|ITGB5|KDM6A|KDM6B|KIF16B|KLF4|LAMA3|LAMB1|LEF1|LEO1|LHX1|MESP1|MESP2|MIXL1|MMP14|MMP15|MMP2|MMP9|MSGN1|NANOG|NF2|NODAL|NOG|NR4A3|PAF1|PAX2|POFUT2|POU5F1|PRKAR1A|RTF1|SETD2|SIX2|SMAD1|SMAD2|SMAD3|SNAI1|SOX17|SOX2|SOX7|SRF|TAL1|TBX20|TBX6|TWSG1|TXNRD1|VTN|WLS|WNT11|WNT3|WNT3A|WNT5A|                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| endoderm formation                       | <GO:0001706> |         46|        46|  0.0493386|     0|                0|         0|                  0|               0.811| NA      | CDC73|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CTNNB1|CTR9|DKK1|DUSP1|DUSP2|DUSP4|DUSP5|EOMES|FN1|GATA6|HMGA2|HSBP1|ITGA4|ITGA5|ITGA7|ITGAV|ITGB2|ITGB5|LAMA3|LAMB1|LEO1|LHX1|MIXL1|MMP14|MMP15|MMP2|MMP9|NANOG|NODAL|NOG|PAF1|POU5F1|RTF1|SETD2|SMAD2|SOX17|SOX2|SOX7|TBX20|VTN|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| morphogenesis of a branching structure   | <GO:0001763> |        151|       150|  0.0307658|     0|                0|         0|                  0|               0.999| NA      | ACVR1|ADAMTS16|ADM|AR|B4GALT1|BCL2|BMP2|BMP4|BMP7|BTRC|CELSR1|CLIC4|COL13A1|COL4A1|CSF1|CTNNB1|CTNNBIP1|CTSH|CTSZ|DAG1|DCHS1|DDR1|DLG1|DLG5|DLL4|DLX2|EDN1|EDNRA|EGF|ENG|EPHA2|EPHA7|ESRP2|EYA1|FAT4|FEM1B|FGF1|FGF10|FGF2|FGF7|FGF8|FGFR1|FGFR2|FOXA1|FOXC2|FOXD1|FOXF1|FRS2|FZD5|GBX2|GCM1|GDNF|GLI2|GLI3|GNA13|GPC3|GRB2|GREM1|GRHL2|GZF1|HHEX|HHIP|HOXA11|HOXB13|HOXD11|HOXD13|IHH|IL10|ILK|KDM5B|KRAS|LAMA5|LEF1|LHX1|LRP5|LRP6|MED1|MET|MKS1|MMP14|MSX2|MYC|MYCN|NFATC4|NKX3-1|NOG|NOTCH1|NOTCH4|NPNT|NRARP|NRP1|PAK1|PAX2|PBX1|PGF|PHB2|PITX2|PKD1|PKD2|PLXNA1|PLXND1|PML|PPP1CA|PPP3R1|PRDM1|PROX1|PTCH1|RASIP1|RBM15|RDH10|RERE|RSPO2|RSPO3|SALL1|SEMA3A|SEMA3C|SEMA3E|SETD2|SFRP1|SFRP2|SLIT2|SMAD4|SOCS3|SOX10|SOX8|SOX9|SPINT1|SPINT2|SPRY1|SPRY2|SRC|SRF|ST14|STK4|TBX20|TBX3|TDGF1|TGFB1|TGFBR2|TGM2|TIMELESS|TNC|VANGL2|VDR|VEGFA|WNT4|WNT5A|WNT9B|WT1|YAP1|                                                                                                                                                  |
-| cardiac chamber development              | <GO:0003205> |        140|       140|  0.0343675|     0|                0|         0|                  0|               0.998| NA      | ACVR1|ADAMTS1|ANK2|AP2B1|ARID1A|BMP10|BMP4|BMP5|BMP7|BMPR1A|BMPR2|CHD7|CITED2|COL11A1|CPE|CRELD1|CYR61|DAND5|DCTN5|DHRS3|DLL4|DNM2|DSP|EGLN1|ENG|FGF8|FGFR2|FGFRL1|FHL2|FKBP1A|FOXC1|FOXC2|FOXF1|FOXH1|FRS2|FZD1|FZD2|GATA3|GATA4|GATA6|GJA5|GRHL2|GSK3A|HAND1|HAND2|HEG1|HES1|HEY1|HEY2|HEYL|HIF1A|ID2|ISL1|JAG1|KCNK2|LMO4|LRP2|LTBP1|LUZP1|MAML1|MDM2|MED1|MEF2C|MESP1|MSX2|MYH6|MYOCD|NDST1|NKX2-5|NOG|NOTCH1|NOTCH2|NPHP3|NPRL3|NPY5R|NRG1|NRP1|NRP2|OVOL2|PARVA|PCSK5|PITX2|PKP2|PLXND1|POU4F1|PPP1R13L|PRDM1|PROX1|PTCD2|PTK7|RARA|RARB|RBM15|RBP4|RBPJ|RXRA|RYR2|SALL1|SALL4|SAV1|SCN5A|SEMA3C|SFRP2|SHOX2|SMAD4|SMAD6|SMAD7|SMARCD3|SMO|SNX17|SOS1|SOX11|SOX4|SRF|STRA6|SUFU|TAB1|TBX1|TBX2|TBX20|TBX3|TEK|TGFB1|TGFB2|TGFBR1|TGFBR2|TGFBR3|TMEM65|TNNC1|TNNI1|TNNI3|TNNT2|TPM1|TRIP11|UBE4B|VANGL2|WNT11|WNT5A|ZFPM1|ZFPM2|                                                                                                                                                                                        |
-| gastrulation                             | <GO:0007369> |        138|       138|  0.0508365|     0|                0|         0|                  0|               0.983| NA      | ACVR1|ACVR2A|ACVR2B|AMOT|APLNR|ARFRP1|ARID1A|ATOH8|AXIN1|BMP4|BMP7|BMPR1A|BMPR2|CDC73|CER1|CFC1B|CHRD|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CRB2|CTNNB1|CTR9|CUL3|DKK1|DLD|DUSP1|DUSP2|DUSP4|DUSP5|DVL1|DVL2|EOMES|EPB41L5|ETS2|ETV2|EXOC4|EXT1|EXT2|EYA1|EYA2|FGF8|FGFR2|FN1|FOXA2|FOXC1|FOXC2|FOXF1|FRS2|GATA6|GDF3|GPI|GSC|HAND1|HHEX|HIRA|HMGA2|HOXA11|HSBP1|ITGA2|ITGA3|ITGA4|ITGA5|ITGA7|ITGA8|ITGAV|ITGB1|ITGB2|ITGB5|KDM6A|KDM6B|KIF16B|KLF4|LAMA3|LAMB1|LDB1|LEF1|LEO1|LHX1|LRP5|LRP6|MEGF8|MESP1|MESP2|MIXL1|MKKS|MMP14|MMP15|MMP2|MMP9|MSGN1|NANOG|NF2|NODAL|NOG|NPHP3|NR4A3|OTX2|PAF1|PAX2|POFUT2|POGLUT1|POU5F1|PRKAR1A|RIC8A|RNF2|RPS6|RTF1|SETD2|SFRP1|SIX2|SMAD1|SMAD2|SMAD3|SMAD4|SNAI1|SOX17|SOX2|SOX7|SRF|SYF2|TAL1|TBX20|TBX6|TGFBR2|TWSG1|TXNRD1|UGDH|VANGL2|VTN|WLS|WNT11|WNT3|WNT3A|WNT5A|ZBTB17|                                                                                                                                                                                                      |
-| endoderm development                     | <GO:0007492> |         67|        67|  0.0475672|     0|                0|         0|                  0|               0.864| NA      | ARC|BMP4|BMPR1A|BPTF|CDC73|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CTNNB1|CTR9|DKK1|DUSP1|DUSP2|DUSP4|DUSP5|EOMES|EPB41L5|EXT1|FGF8|FN1|GATA4|GATA6|GDF3|HHEX|HMGA2|HSBP1|ITGA4|ITGA5|ITGA7|ITGAV|ITGB2|ITGB5|KIF16B|LAMA3|LAMB1|LAMC1|LEO1|LHX1|MED12|MIXL1|MMP14|MMP15|MMP2|MMP9|NANOG|NODAL|NOG|NOTCH1|ONECUT1|PAF1|PAX9|PELO|POU5F1|RTF1|SETD2|SMAD2|SMAD3|SMAD4|SOX17|SOX2|SOX7|TBX20|TGFB1|VTN|ZFP36L1|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| anterior/posterior pattern specification | <GO:0009952> |        155|       154|  0.0335883|     0|                0|         0|                  0|               0.970| NA      | ABI1|ACVR2A|ACVR2B|ALDH1A2|ALX1|ARC|ATM|ATP6AP2|AURKA|AXIN1|AXIN2|BARX1|BASP1|BMP2|BMP4|BMPR1A|BMPR2|BPTF|BTG2|CDON|CDX1|CDX2|CDX4|CELSR1|CELSR2|CER1|CFC1B|COBL|CRB2|CRKL|CTNNB1|CTNNBIP1|DDIT3|DKK1|DLL1|DLL3|EP300|EPB41L5|ETS2|FEZF1|FGF8|FOXA2|FOXC1|FOXC2|FOXF1|FOXH1|FRS2|FZD5|GATA4|GBX2|GDF11|GDF3|GLI2|GLI3|GPC3|GRSF1|HES1|HEY2|HHEX|HIPK1|HIPK2|HOXA10|HOXA11|HOXA9|HOXB2|HOXB3|HOXB4|HOXB5|HOXB6|HOXB7|HOXB8|HOXB9|HOXC6|HOXD13|HOXD8|KAT2A|KDM2B|KDM6A|LDB1|LEF1|LFNG|LHX1|LRP5|LRP6|MED12|MEOX1|MESP1|MESP2|MIB1|MLLT3|MSGN1|MSX1|MSX2|NKX3-1|NLE1|NODAL|NOG|NOTCH1|NRARP|OTX2|PALB2|PAX6|PBX1|PBX3|PCDH8|PCGF2|PCSK5|PCSK6|PGAP1|PLD6|PLXNA2|POFUT1|POGLUT1|PRKDC|PSEN1|RARG|RBPJ|RING1|RIPPLY1|RNF2|ROR2|SCMH1|SEMA3C|SFRP1|SFRP2|SIX2|SKI|SMAD2|SMAD3|SMAD4|SMO|SOX17|SRF|SSBP3|TBX1|TBX3|TBX6|TCF15|TDGF1|TGFBR1|TMED2|TSHZ1|TULP3|VANGL2|WLS|WNT3|WNT3A|WNT5A|WNT8A|WT1|XRCC2|YY1|ZEB2|ZIC3|                                                                                                             |
-| collagen catabolic process               | <GO:0030574> |         45|        45|  0.0385284|     0|                0|         0|                  0|               0.291| NA      | ADAM15|ADAMTS2|ADAMTS3|COL11A1|COL11A2|COL12A1|COL13A1|COL15A1|COL18A1|COL19A1|COL1A1|COL1A2|COL25A1|COL2A1|COL3A1|COL4A1|COL4A2|COL4A4|COL4A5|COL4A6|COL5A1|COL5A2|COL5A3|COL6A1|COL6A2|COL6A3|COL6A5|COL6A6|COL7A1|COL8A2|CTSB|CTSD|CTSK|CTSS|FURIN|KLK6|MMP11|MMP14|MMP15|MMP16|MMP19|MMP2|MMP9|MRC2|PEPD|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| collagen metabolic process               | <GO:0032963> |         53|        53|  0.0341545|     0|                0|         0|                  0|               0.467| NA      | ADAM15|ADAMTS2|ADAMTS3|COL11A1|COL11A2|COL12A1|COL13A1|COL15A1|COL18A1|COL19A1|COL1A1|COL1A2|COL25A1|COL2A1|COL3A1|COL4A1|COL4A2|COL4A4|COL4A5|COL4A6|COL5A1|COL5A2|COL5A3|COL6A1|COL6A2|COL6A3|COL6A5|COL6A6|COL7A1|COL8A2|CTSB|CTSD|CTSK|CTSS|FURIN|HIF1A|ID1|KLK6|MMP11|MMP14|MMP15|MMP16|MMP19|MMP2|MMP9|MRC2|P2RX7|PEPD|PLOD3|SERPINH1|TNXB|TRAM2|VPS33B|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| skeletal system morphogenesis            | <GO:0048705> |        164|       164|  0.0342990|     0|                0|         0|                  0|               0.963| NA      | ACP5|ACVR2B|ALPL|ALX1|ANKRD11|ARID5B|AXIN1|AXIN2|BMP1|BMP4|BMP6|BMP7|BMPR1B|BMPR2|CARM1|CDX1|CER1|CHST11|CHSY1|COL11A1|COL13A1|COL1A1|COL27A1|COL2A1|CSGALNACT1|CSRNP1|CTGF|CTNNB1|CYP26B1|DHRS3|DLG1|DLX2|DLX5|DSCAML1|EIF4A3|EYA1|FBN2|FGF18|FGF4|FGFR1|FGFR2|FGFR3|FLVCR1|FMN1|FOXC1|FOXC2|FOXN3|FREM1|FUZ|GLG1|GLI3|GNAS|GRHL2|GSC|HAS2|HHIP|HOXA1|HOXA11|HOXB2|HOXB3|HOXB4|HOXB5|HOXB6|HOXB7|HOXB8|HOXD8|HYAL1|HYAL2|IFT140|IFT80|IHH|IMPAD1|INPPL1|INSIG1|INSIG2|IRX5|LHX1|LRP5|MAPK14|MDFI|MED12|MEF2C|MEF2D|MEGF8|MMP14|MMP16|MMP2|MSX1|MSX2|MTHFD1|MTHFD1L|MYCN|NAB1|NAB2|NDST1|NIPBL|NKX3-2|NLE1|NODAL|NOG|P2RX7|PAPPA2|PCGF2|PDGFRA|PEX7|PHOSPHO1|PKD1|PLEKHA1|POC1A|PPARGC1B|PRKRA|PRRX1|PSEN1|RAB23|RAB33B|RARA|RARB|RARG|RDH10|ROR2|RUNX2|SATB2|SERPINH1|SETD2|SFRP1|SFRP2|SGPL1|SH3PXD2B|SHOX2|SIX2|SIX4|SKI|SLC39A1|SLC39A3|SMAD2|SMAD3|SOX11|SOX9|SP5|STC1|TBX1|TBX15|TBX4|TCF15|TEK|TFAP2A|TGFB1|TGFB3|TGFBR1|TGFBR2|THBS3|THRA|TIPARP|TRIP11|TRPV4|TULP3|TWIST1|WDR19|WDR48|WDR60|WNT9B|WWOX|ZEB1|ZFAND5| |
+| Name                                                                     | ID           |  NumProbes|  NumGenes|   RawScore|  Pval|  CorrectedPvalue|  MFPvalue|  CorrectedMFPvalue|  Multifunctionality| Same as | GeneMembers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+|:-------------------------------------------------------------------------|:-------------|----------:|---------:|----------:|-----:|----------------:|---------:|------------------:|-------------------:|:--------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| formation of primary germ layer                                          | <GO:0001704> |        101|       101|  0.0492904|     0|                0|         0|                  0|               0.984| NA      | ACVR1|ARID1A|ATOH8|AXIN1|BMP4|BMP7|BMPR1A|BMPR2|CDC73|CHRD|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CRB2|CTNNB1|CTR9|DKK1|DUSP1|DUSP2|DUSP4|DUSP5|EOMES|EPB41L5|ETS2|ETV2|EXOC4|EXT2|EYA1|EYA2|FGFR2|FN1|FOXC1|FOXC2|FOXF1|GATA6|GPI|HAND1|HMGA2|HOXA11|HSBP1|ITGA2|ITGA3|ITGA4|ITGA5|ITGA7|ITGA8|ITGAV|ITGB1|ITGB2|ITGB5|KDM6A|KDM6B|KIF16B|KLF4|LAMA3|LAMB1|LEF1|LEO1|LHX1|MESP1|MESP2|MIXL1|MMP14|MMP15|MMP2|MMP9|MSGN1|NANOG|NF2|NODAL|NOG|NR4A3|PAF1|PAX2|POFUT2|POU5F1|PRKAR1A|RTF1|SETD2|SIX2|SMAD1|SMAD2|SMAD3|SNAI1|SOX17|SOX2|SOX7|SRF|TAL1|TBX20|TBX6|TWSG1|TXNRD1|VTN|WLS|WNT11|WNT3|WNT3A|WNT5A|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| endoderm formation                                                       | <GO:0001706> |         46|        46|  0.0522836|     0|                0|         0|                  0|               0.811| NA      | CDC73|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CTNNB1|CTR9|DKK1|DUSP1|DUSP2|DUSP4|DUSP5|EOMES|FN1|GATA6|HMGA2|HSBP1|ITGA4|ITGA5|ITGA7|ITGAV|ITGB2|ITGB5|LAMA3|LAMB1|LEO1|LHX1|MIXL1|MMP14|MMP15|MMP2|MMP9|NANOG|NODAL|NOG|PAF1|POU5F1|RTF1|SETD2|SMAD2|SOX17|SOX2|SOX7|TBX20|VTN|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| morphogenesis of a branching structure                                   | <GO:0001763> |        151|       150|  0.0381646|     0|                0|         0|                  0|               0.999| NA      | ACVR1|ADAMTS16|ADM|AR|B4GALT1|BCL2|BMP2|BMP4|BMP7|BTRC|CELSR1|CLIC4|COL13A1|COL4A1|CSF1|CTNNB1|CTNNBIP1|CTSH|CTSZ|DAG1|DCHS1|DDR1|DLG1|DLG5|DLL4|DLX2|EDN1|EDNRA|EGF|ENG|EPHA2|EPHA7|ESRP2|EYA1|FAT4|FEM1B|FGF1|FGF10|FGF2|FGF7|FGF8|FGFR1|FGFR2|FOXA1|FOXC2|FOXD1|FOXF1|FRS2|FZD5|GBX2|GCM1|GDNF|GLI2|GLI3|GNA13|GPC3|GRB2|GREM1|GRHL2|GZF1|HHEX|HHIP|HOXA11|HOXB13|HOXD11|HOXD13|IHH|IL10|ILK|KDM5B|KRAS|LAMA5|LEF1|LHX1|LRP5|LRP6|MED1|MET|MKS1|MMP14|MSX2|MYC|MYCN|NFATC4|NKX3-1|NOG|NOTCH1|NOTCH4|NPNT|NRARP|NRP1|PAK1|PAX2|PBX1|PGF|PHB2|PITX2|PKD1|PKD2|PLXNA1|PLXND1|PML|PPP1CA|PPP3R1|PRDM1|PROX1|PTCH1|RASIP1|RBM15|RDH10|RERE|RSPO2|RSPO3|SALL1|SEMA3A|SEMA3C|SEMA3E|SETD2|SFRP1|SFRP2|SLIT2|SMAD4|SOCS3|SOX10|SOX8|SOX9|SPINT1|SPINT2|SPRY1|SPRY2|SRC|SRF|ST14|STK4|TBX20|TBX3|TDGF1|TGFB1|TGFBR2|TGM2|TIMELESS|TNC|VANGL2|VDR|VEGFA|WNT4|WNT5A|WNT9B|WT1|YAP1|                                                                                                                                                                                                                                                                                                                   |
+| cardiac chamber development                                              | <GO:0003205> |        140|       140|  0.0424344|     0|                0|         0|                  0|               0.998| NA      | ACVR1|ADAMTS1|ANK2|AP2B1|ARID1A|BMP10|BMP4|BMP5|BMP7|BMPR1A|BMPR2|CHD7|CITED2|COL11A1|CPE|CRELD1|CYR61|DAND5|DCTN5|DHRS3|DLL4|DNM2|DSP|EGLN1|ENG|FGF8|FGFR2|FGFRL1|FHL2|FKBP1A|FOXC1|FOXC2|FOXF1|FOXH1|FRS2|FZD1|FZD2|GATA3|GATA4|GATA6|GJA5|GRHL2|GSK3A|HAND1|HAND2|HEG1|HES1|HEY1|HEY2|HEYL|HIF1A|ID2|ISL1|JAG1|KCNK2|LMO4|LRP2|LTBP1|LUZP1|MAML1|MDM2|MED1|MEF2C|MESP1|MSX2|MYH6|MYOCD|NDST1|NKX2-5|NOG|NOTCH1|NOTCH2|NPHP3|NPRL3|NPY5R|NRG1|NRP1|NRP2|OVOL2|PARVA|PCSK5|PITX2|PKP2|PLXND1|POU4F1|PPP1R13L|PRDM1|PROX1|PTCD2|PTK7|RARA|RARB|RBM15|RBP4|RBPJ|RXRA|RYR2|SALL1|SALL4|SAV1|SCN5A|SEMA3C|SFRP2|SHOX2|SMAD4|SMAD6|SMAD7|SMARCD3|SMO|SNX17|SOS1|SOX11|SOX4|SRF|STRA6|SUFU|TAB1|TBX1|TBX2|TBX20|TBX3|TEK|TGFB1|TGFB2|TGFBR1|TGFBR2|TGFBR3|TMEM65|TNNC1|TNNI1|TNNI3|TNNT2|TPM1|TRIP11|UBE4B|VANGL2|WNT11|WNT5A|ZFPM1|ZFPM2|                                                                                                                                                                                                                                                                                                                                                         |
+| transmembrane receptor protein serine/threonine kinase signaling pathway | <GO:0007178> |        166|       166|  0.0314151|     0|                0|         0|                  0|               0.944| NA      | ACVR1|ACVR1B|ACVR1C|ACVR2A|ACVR2B|ACVRL1|ADAM9|AFP|AKAP2|AKAP4|AMH|AMHR2|ARHGEF18|ARRB2|ATOH8|BMP10|BMP2|BMP3|BMP4|BMP5|BMP6|BMP7|BMP8A|BMP8B|BMPR1A|BMPR1B|BMPR2|BTBD11|CBL|CDH5|CER1|CFC1B|CGN|CHRD|CHRDL1|CITED2|COL1A2|COL3A1|CREB1|DDX5|DLX5|DUSP22|EGR1|EID2|ENG|ETV2|F11R|FAM83G|FERMT2|FGF8|FKBP1A|FMOD|FNTA|FOS|FOXH1|FSTL1|FURIN|FUT8|GCNT2|GDF10|GDF11|GDF15|GDF3|GDF6|GREM2|HIPK2|HNF4A|HPGD|ID1|INHBE|IRAK1|ITGB1|ITGB5|JUN|KLF10|LEF1|LEFTY1|LEFTY2|LNPEP|LRP4|LTBP1|LTBP2|LTBP4|MAGI2|MAP3K7|MAPK14|MAPK3|MEGF8|MSX1|MSX2|MTMR4|MYH6|NEDD8|NKX2-5|NLK|NODAL|NOG|NUP93|PALM2|PARD3|PARD6A|PARP1|PDCD4|PML|PPM1L|PRKCZ|PTK2|PTPRK|PXN|RBM14|RGMA|RGMB|RHOA|RNF111|ROR2|RPS27A|RUNX2|RYR2|SIRT1|SKI|SKIL|SLC33A1|SMAD1|SMAD2|SMAD3|SMAD4|SMAD5|SMAD6|SMAD7|SMAD9|SMURF1|SMURF2|SOSTDC1|SPTBN1|SRC|STUB1|SUB1|TAB1|TDGF1|TGFB1|TGFB1I1|TGFB2|TGFB3|TGFBR1|TGFBR2|TGFBR3|TGFBRAP1|TGIF2|TMEM100|TOB1|TWSG1|UBA52|UBB|UBC|UBE2D1|UBE2D3|UBE2M|USP15|USP9X|VIM|ZCCHC12|ZCCHC18|ZFYVE16|ZFYVE9|ZNF8|ZYX|                                                                                                                                                                               |
+| gastrulation                                                             | <GO:0007369> |        138|       138|  0.0611631|     0|                0|         0|                  0|               0.983| NA      | ACVR1|ACVR2A|ACVR2B|AMOT|APLNR|ARFRP1|ARID1A|ATOH8|AXIN1|BMP4|BMP7|BMPR1A|BMPR2|CDC73|CER1|CFC1B|CHRD|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CRB2|CTNNB1|CTR9|CUL3|DKK1|DLD|DUSP1|DUSP2|DUSP4|DUSP5|DVL1|DVL2|EOMES|EPB41L5|ETS2|ETV2|EXOC4|EXT1|EXT2|EYA1|EYA2|FGF8|FGFR2|FN1|FOXA2|FOXC1|FOXC2|FOXF1|FRS2|GATA6|GDF3|GPI|GSC|HAND1|HHEX|HIRA|HMGA2|HOXA11|HSBP1|ITGA2|ITGA3|ITGA4|ITGA5|ITGA7|ITGA8|ITGAV|ITGB1|ITGB2|ITGB5|KDM6A|KDM6B|KIF16B|KLF4|LAMA3|LAMB1|LDB1|LEF1|LEO1|LHX1|LRP5|LRP6|MEGF8|MESP1|MESP2|MIXL1|MKKS|MMP14|MMP15|MMP2|MMP9|MSGN1|NANOG|NF2|NODAL|NOG|NPHP3|NR4A3|OTX2|PAF1|PAX2|POFUT2|POGLUT1|POU5F1|PRKAR1A|RIC8A|RNF2|RPS6|RTF1|SETD2|SFRP1|SIX2|SMAD1|SMAD2|SMAD3|SMAD4|SNAI1|SOX17|SOX2|SOX7|SRF|SYF2|TAL1|TBX20|TBX6|TGFBR2|TWSG1|TXNRD1|UGDH|VANGL2|VTN|WLS|WNT11|WNT3|WNT3A|WNT5A|ZBTB17|                                                                                                                                                                                                                                                                                                                                                                       |
+| axon guidance                                                            | <GO:0007411> |        196|       196|  0.0372960|     0|                0|         0|                  0|               0.939| NA      | ALCAM|APBB2|APP|ARHGAP35|ARTN|B3GNT2|BCL11B|BDNF|BMP7|BMPR1B|BOC|CDH4|CDK5|CDK5R1|CELSR3|CHL1|CHN1|CNTN4|CREB1|CRMP1|CXCL12|CXCR4|CYFIP1|CYFIP2|DAB1|DAG1|DCC|DLX5|DOK1|DOK4|DOK5|DOK6|DPYSL2|DPYSL5|DVL1|EFNA1|EFNA2|EFNA3|EFNA4|EFNA5|EFNB1|EFNB2|EFNB3|EGR2|ENAH|EPHA4|EPHA5|EPHA7|EPHA8|EPHB1|EPHB2|EPHB3|ERBB2|ETV1|EVL|EXT1|EZR|FAM129B|FEZ1|FEZ2|FEZF1|FGF8|FLRT2|FLRT3|FOXD1|FRS2|FYN|FZD3|GAB1|GAB2|GAP43|GATA3|GBX2|GDNF|GFRA1|GFRA2|GFRA3|GLI2|GLI3|GPC1|GRB10|GRB2|GRB7|HRAS|IRS2|ISL1|ISPD|KIF3A|KIF5A|KIF5B|KIF5C|KLF7|KRAS|L1CAM|LAMA2|LAMB2|LGI1|LHX1|LHX2|LYPLA2|MAPK1|MAPK3|MAPK7|MATN2|NCAM1|NEO1|NFASC|NFIB|NGFR|NOG|NPHS1|NR4A3|NRAS|NRCAM|NRP1|NRP2|NRXN1|NRXN3|NTN1|NTN4|NTRK1|OPHN1|OTX2|PAX6|PDLIM7|PIK3CA|PIK3CB|PIK3CD|PIK3R1|PLCG1|PLXNA1|PLXNA2|PLXNA3|PLXNA4|PLXNB1|PLXNB2|PLXNB3|PLXNC1|PLXND1|PRKCA|PRKCQ|PTCH1|PTK2|PTPN11|PTPRA|PTPRM|PTPRO|RANBP9|RAP1GAP|RELN|RET|RNF165|ROBO1|ROBO2|ROBO3|RPS6KA5|RYK|SCN1B|SEMA3A|SEMA3B|SEMA3C|SEMA3F|SEMA4F|SEMA6A|SEMA6C|SH3KBP1|SHANK3|SHC1|SHC3|SIAH1|SIAH2|SLIT1|SLIT2|SLIT3|SMAD4|SOS1|SPTAN1|SPTB|SPTBN1|SPTBN2|SPTBN5|SRC|TNFRSF8|TUBB3|UNC5B|UNC5C|UNC5D|USP33|VANGL2|VASP|VAX1|VEGFA|VLDLR|WNT3|WNT3A|WNT5A| |
+| endoderm development                                                     | <GO:0007492> |         67|        67|  0.0538756|     0|                0|         0|                  0|               0.864| NA      | ARC|BMP4|BMPR1A|BPTF|CDC73|COL11A1|COL12A1|COL4A2|COL6A1|COL7A1|CTNNB1|CTR9|DKK1|DUSP1|DUSP2|DUSP4|DUSP5|EOMES|EPB41L5|EXT1|FGF8|FN1|GATA4|GATA6|GDF3|HHEX|HMGA2|HSBP1|ITGA4|ITGA5|ITGA7|ITGAV|ITGB2|ITGB5|KIF16B|LAMA3|LAMB1|LAMC1|LEO1|LHX1|MED12|MIXL1|MMP14|MMP15|MMP2|MMP9|NANOG|NODAL|NOG|NOTCH1|ONECUT1|PAF1|PAX9|PELO|POU5F1|RTF1|SETD2|SMAD2|SMAD3|SMAD4|SOX17|SOX2|SOX7|TBX20|TGFB1|VTN|ZFP36L1|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| anterior/posterior pattern specification                                 | <GO:0009952> |        155|       154|  0.0443234|     0|                0|         0|                  0|               0.970| NA      | ABI1|ACVR2A|ACVR2B|ALDH1A2|ALX1|ARC|ATM|ATP6AP2|AURKA|AXIN1|AXIN2|BARX1|BASP1|BMP2|BMP4|BMPR1A|BMPR2|BPTF|BTG2|CDON|CDX1|CDX2|CDX4|CELSR1|CELSR2|CER1|CFC1B|COBL|CRB2|CRKL|CTNNB1|CTNNBIP1|DDIT3|DKK1|DLL1|DLL3|EP300|EPB41L5|ETS2|FEZF1|FGF8|FOXA2|FOXC1|FOXC2|FOXF1|FOXH1|FRS2|FZD5|GATA4|GBX2|GDF11|GDF3|GLI2|GLI3|GPC3|GRSF1|HES1|HEY2|HHEX|HIPK1|HIPK2|HOXA10|HOXA11|HOXA9|HOXB2|HOXB3|HOXB4|HOXB5|HOXB6|HOXB7|HOXB8|HOXB9|HOXC6|HOXD13|HOXD8|KAT2A|KDM2B|KDM6A|LDB1|LEF1|LFNG|LHX1|LRP5|LRP6|MED12|MEOX1|MESP1|MESP2|MIB1|MLLT3|MSGN1|MSX1|MSX2|NKX3-1|NLE1|NODAL|NOG|NOTCH1|NRARP|OTX2|PALB2|PAX6|PBX1|PBX3|PCDH8|PCGF2|PCSK5|PCSK6|PGAP1|PLD6|PLXNA2|POFUT1|POGLUT1|PRKDC|PSEN1|RARG|RBPJ|RING1|RIPPLY1|RNF2|ROR2|SCMH1|SEMA3C|SFRP1|SFRP2|SIX2|SKI|SMAD2|SMAD3|SMAD4|SMO|SOX17|SRF|SSBP3|TBX1|TBX3|TBX6|TCF15|TDGF1|TGFBR1|TMED2|TSHZ1|TULP3|VANGL2|WLS|WNT3|WNT3A|WNT5A|WNT8A|WT1|XRCC2|YY1|ZEB2|ZIC3|                                                                                                                                                                                                                                                                              |
+| collagen fibril organization                                             | <GO:0030199> |         36|        36|  0.0398269|     0|                0|         0|                  0|               0.747| NA      | ADAMTS2|ADAMTS3|ANXA2|ATP7A|COL11A1|COL11A2|COL12A1|COL14A1|COL1A1|COL1A2|COL2A1|COL3A1|COL5A1|COL5A2|COL5A3|CYP1B1|DDR2|FMOD|FOXC1|FOXC2|GREM1|LOX|LOXL1|LOXL2|LOXL4|LUM|MMP11|NF1|P4HA1|PLOD3|SERPINH1|SFRP2|TGFB2|TGFBR1|TNXB|VPS33B|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ``` r
 enrichmentResult$results %>% 
-  select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
   arrange(CorrectedMFPvalue) %>% 
   head(10) %>% 
   kable(align = "l", col.names = c("Biological Process", "Corrected p-value", 
@@ -1239,23 +1281,23 @@ enrichmentResult$results %>%
 
 | Biological Process                                                                     | Corrected p-value | Corrected MF p-value |
 |:---------------------------------------------------------------------------------------|:------------------|:---------------------|
+| neuron projection guidance                                                             | 0                 | 0                    |
 | regulation of transmembrane receptor protein serine/threonine kinase signaling pathway | 0                 | 0                    |
 | connective tissue development                                                          | 0                 | 0                    |
+| morphogenesis of a branching epithelium                                                | 0                 | 0                    |
 | mesenchyme development                                                                 | 0                 | 0                    |
+| bone development                                                                       | 0                 | 0                    |
+| digestive system development                                                           | 0                 | 0                    |
 | skeletal system morphogenesis                                                          | 0                 | 0                    |
+| cell fate commitment                                                                   | 0                 | 0                    |
 | collagen metabolic process                                                             | 0                 | 0                    |
-| collagen catabolic process                                                             | 0                 | 0                    |
-| anterior/posterior pattern specification                                               | 0                 | 0                    |
-| endoderm development                                                                   | 0                 | 0                    |
-| gastrulation                                                                           | 0                 | 0                    |
-| cardiac chamber development                                                            | 0                 | 0                    |
 
 ``` r
 Enrichment <- enrichmentResult$results
 Enrichment$Name <- as.factor(Enrichment$Name)
 
 Enrichment %>% 
-  select(Name, NumGenes, CorrectedMFPvalue) %>% 
+  dplyr::select(Name, NumGenes, CorrectedMFPvalue) %>% 
   arrange(CorrectedMFPvalue) %>% 
   filter(CorrectedMFPvalue <= 5e-2) %>% 
   head(25) %>% 
@@ -1269,4 +1311,4 @@ Enrichment %>%
   theme_light() 
 ```
 
-![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-79-1.png)
+![](GSE75748_data_analysis_files/figure-markdown_github/unnamed-chunk-81-1.png)

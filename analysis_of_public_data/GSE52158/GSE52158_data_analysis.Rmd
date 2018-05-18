@@ -173,11 +173,11 @@ topProbes$Symbol <- symbs
 
 ermineInputProbeScores <- topProbes %>% 
   #as.data.frame() %>%
-  mutate(absolute_logFC = abs(logFC)) %>% 
-  dplyr::select(probes, absolute_logFC) %>% 
+  #mutate(absolute_logFC = logFC) %>% 
+  dplyr::select(probes, logFC) %>% 
   na.omit() %>% 
   as.data.frame() %>% 
-  arrange(desc(absolute_logFC)) %>% 
+  arrange(desc(logFC)) %>% 
   column_to_rownames("probes")
 
 head(ermineInputProbeScores, 10)# %>% kable() # print the first few rows
@@ -213,7 +213,7 @@ Enrichment %>%
   ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
              y = NumGenes, fill = CorrectedMFPvalue)) +
   geom_col() +
-  labs(title = "Biological Processes - GSE75748", 
+  labs(title = "Biological Processes - GSE52158", 
        x = "", y = "Number of Genes") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   coord_flip() +

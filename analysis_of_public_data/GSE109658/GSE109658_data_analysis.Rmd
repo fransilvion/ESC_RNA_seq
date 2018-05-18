@@ -438,11 +438,11 @@ ggplot(data = DEgenes_0h_96h, aes(x = logFC, y = -log(adj.P.Val), color = (-log(
 ```{r}
 ermineInputGeneScores <- DEgenes_0h_96h %>% 
   rownames_to_column("gene") %>%
-  mutate(absolute_logFC = abs(logFC)) %>% 
-  select(gene, absolute_logFC) %>% 
+  #mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, logFC) %>% 
   na.omit() %>% 
   as.data.frame() %>% 
-  arrange(desc(absolute_logFC)) %>% 
+  arrange(desc(logFC)) %>% 
   column_to_rownames("gene")
 
 head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
@@ -461,7 +461,7 @@ enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
 
 ```{r}
 enrichmentResult$results %>% 
-  select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
   arrange(CorrectedMFPvalue) %>% 
   head(10) %>% 
   kable(align = "l", col.names = c("Biological Process", "Corrected p-value", 
@@ -473,14 +473,14 @@ Enrichment <- enrichmentResult$results
 Enrichment$Name <- as.factor(Enrichment$Name)
 
 Enrichment %>% 
-  select(Name, NumGenes, CorrectedMFPvalue) %>% 
+  dplyr::select(Name, NumGenes, CorrectedMFPvalue) %>% 
   arrange(CorrectedMFPvalue) %>% 
   filter(CorrectedMFPvalue <= 5e-2) %>% 
   head(25) %>% 
   ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
              y = NumGenes, fill = CorrectedMFPvalue)) +
   geom_col() +
-  labs(title = "Biological Processes - GSE75748", 
+  labs(title = "Biological Processes - GSE109658", 
        x = "", y = "Number of Genes") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   coord_flip() +
