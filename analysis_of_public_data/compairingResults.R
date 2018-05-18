@@ -24,7 +24,9 @@ common_downRegulated_2 <- intersect(downGenes52158, downGenes75748) #123
 common_upRegulated_3 <- intersect(upGenes109658, upGenes52158) #295
 common_downRegulated_3 <- intersect(downGenes109658, downGenes52158) #151
 
+#GSC and FOXA2 are not here
 all_upRegulated <- intersect(upGenes109658, intersect(upGenes75748, upGenes52158)) #208
+#POU5F1, DPPA4, CDH1 are not here
 all_downRegulated <- intersect(downGenes109658, intersect(downGenes75748, downGenes52158)) #84
 
 #take genes that are present in at least two intersection sets:
@@ -37,3 +39,6 @@ confident_down <- c()
 confident_down <- c( confident_down , common_downRegulated_1[ ! common_downRegulated_1 %chin% confident_down ] ) #433
 confident_down <- c( confident_down , common_downRegulated_2[ ! common_downRegulated_2 %chin% confident_down ] ) #472
 confident_down <- c( confident_down , common_downRegulated_3[ ! common_downRegulated_3 %chin% confident_down ] ) #539
+
+save(all_upRegulated, file="allUpRegulated.Rdata")
+save(all_downRegulated, file="allDownRegulated.Rdata")

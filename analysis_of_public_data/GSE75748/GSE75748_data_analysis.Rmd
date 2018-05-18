@@ -33,6 +33,8 @@ suppressWarnings(suppressMessages(library(readxl)))
 suppressWarnings(suppressMessages(library(VennDiagram)))
 suppressWarnings(suppressMessages(library(pheatmap)))
 suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(annotate)))
 ```
 
 Let's read our data into R (GSE75748):
@@ -655,6 +657,8 @@ save(downRegulated75748, file="downRegulated75748.Rdata")
 ```{r}
 load("../GSE109658/upRegulated109658.Rdata")
 load("../GSE109658/downRegulated109658.Rdata")
+load("../../allUpRegulated.Rdata")
+load("../../allDownRegulated.Rdata")
 
 common_upRegulated <- intersect(upRegulated109658$gene, upRegulated75748$gene)
 common_downRegulated <- intersect(downRegulated109658$gene, downRegulated75748$gene)
@@ -673,7 +677,8 @@ rownames(prDes) <- prDes$samples
 prDes <- prDes[,-1]
 
 #fixing column order for expression matrix (should be the same as rownames order in prDes)
-common_regulated_genes <- c(common_upRegulated, common_downRegulated)
+#common_regulated_genes <- c(common_upRegulated, common_downRegulated)
+common_regulated_genes <- c(all_upRegulated, all_downRegulated)
 
 #topGenesRegulated <- cleaned_log_cpm_df[common_regulated_genes,]
 cl_log_cpm_df <- cleaned_log_cpm_df[, rownames(prDes)]
@@ -701,15 +706,15 @@ close(fileConn)
 
 ```{r}
 #not sure here...
-genRef <- topTable(contrastFitEb, number = Inf, p.value=cutoff, lfc=2)
+genRef <- topTable(contrastFitEb, number = Inf, p.value=cutoff, lfc=1)
 
 #taking upregulated genes
-referenceUpregulated <- genRef[common_upRegulated,]
+referenceUpregulated <- genRef[all_upRegulated,]
 referenceUpregulated <-  referenceUpregulated[with(referenceUpregulated, order(adj.P.Val)), ]
 referenceUpregulatedLogSorted <- referenceUpregulated[with(referenceUpregulated, order(logFC, decreasing = T)), ]
 
 #taking downregulated genes
-referenceDownregulated <- genRef[common_downRegulated,]
+referenceDownregulated <- genRef[all_downRegulated,]
 referenceDownregulated <-  referenceDownregulated[with(referenceDownregulated, order(adj.P.Val)), ]
 referenceDownregulatedLogSorted <- referenceDownregulated[with(referenceDownregulated, order(logFC)), ]
 
@@ -726,15 +731,44 @@ writeLines(first_down, fileConn2)
 close(fileConn2)
 
 #take 150 upregulated genes (by logFC)
-first_up <- rownames(referenceUpregulatedLogSorted)[1:150]
+first_up <- rownames(referenceUpregulatedLogSorted)#[1:150]
 fileConn<-file("~/Papers/CMAP/topCommonUpRegulatedLogSorted.grp")
 writeLines(first_up, fileConn)
 close(fileConn)
 
 #take 150 downregulated genes (by logFC)
-first_down <- rownames(referenceDownregulatedLogSorted)[1:150]
+first_down <- rownames(referenceDownregulatedLogSorted)#[1:150]
 fileConn2<-file("~/Papers/CMAP/topCommonDownRegulatedLogSorted.grp")
 writeLines(first_down, fileConn2)
+close(fileConn2)
+```
+
+To array probes:
+```{r}
+x <- hgu133aSYMBOL
+# Get the probe identifiers - gene symbol mappings
+mapped_probes <- mappedkeys(x)
+# Convert to a dataframe
+genesym.probeid <- as.data.frame(x[mapped_probes])
+head(genesym.probeid)
+```
+```{r}
+probe_up <- genesym.probeid %>%
+  filter(symbol %in% first_up) 
+
+probe_up <- probe_up$probe_id
+
+probe_down <- genesym.probeid %>%
+  filter(symbol %in% first_down) 
+
+probe_down <- probe_down$probe_id
+
+fileConn2<-file("~/Papers/CMAP/topCommonDownRegulatedLogSortedProbes.grp")
+writeLines(probe_down, fileConn2)
+close(fileConn2)
+
+fileConn2<-file("~/Papers/CMAP/topCommonUpRegulatedLogSortedProbes.grp")
+writeLines(probe_up, fileConn2)
 close(fileConn2)
 ```
 

@@ -1,8 +1,8 @@
 ---
-title: "GSE109658 data analysis"
+title: "GSE52158 data analysis"
 author: "German Novakovskiy"
 date: "May 17, 2018"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
