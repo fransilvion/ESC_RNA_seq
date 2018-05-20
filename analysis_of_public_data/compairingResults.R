@@ -1,4 +1,6 @@
 library(data.table)
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(annotate)))
 
 #loading data 
 load("analysis_of_public_data/GSE109658/upRegulated109658.Rdata") #data.frame
@@ -40,5 +42,22 @@ confident_down <- c( confident_down , common_downRegulated_1[ ! common_downRegul
 confident_down <- c( confident_down , common_downRegulated_2[ ! common_downRegulated_2 %chin% confident_down ] ) #472
 confident_down <- c( confident_down , common_downRegulated_3[ ! common_downRegulated_3 %chin% confident_down ] ) #539
 
+#saving all up and down regulated
 save(all_upRegulated, file="allUpRegulated.Rdata")
 save(all_downRegulated, file="allDownRegulated.Rdata")
+
+#saving common up and down regulated in 109658, 75748 #1
+save(common_upRegulated_1, file="common_upRegulated_109658_75748.Rdata")
+save(common_downRegulated_1, file="common_downRegulated_109658_75748.Rdata")
+
+#saving common up and down regulated in 52158, 75748 #2
+save(common_upRegulated_2, file="common_upRegulated_52158_75748.Rdata")
+save(common_downRegulated_2, file="common_downRegulated_52158_75748.Rdata")
+
+#saving common up and down regulated in 109658, 52158 #3
+save(common_upRegulated_3, file="common_upRegulated_52158_109658.Rdata")
+save(common_downRegulated_3, file="common_upRegulated_52158_109658.Rdata")
+
+#saving confident up and down
+save(confident_up, file="in_at_least_two_sets.Rdata")
+save(confident_down, file="in_at_least_two_sets.Rdata")
