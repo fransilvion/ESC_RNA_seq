@@ -56,7 +56,7 @@ save(common_downRegulated_2, file="common_downRegulated_52158_75748.Rdata")
 
 #saving common up and down regulated in 109658, 52158 #3
 save(common_upRegulated_3, file="common_upRegulated_52158_109658.Rdata")
-save(common_downRegulated_3, file="common_upRegulated_52158_109658.Rdata")
+save(common_downRegulated_3, file="common_downRegulated_52158_109658.Rdata")
 
 #saving confident up and down
 save(confident_up, file="in_at_least_two_sets.Rdata")
