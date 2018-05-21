@@ -41,3 +41,10 @@ In this project I will store my scripts.
   + common_Upregulated_3_109658_LogSortedProbes.grp (sorted 109658) - for CMap O2
   + common_Downregulated_1_52158_LogSorted.grp (sorted 52158) - for LINCS
   + common_Upregulated_1_52158_LogSorted.grp (sorted 52158) - for LINCS
+  
+5. Genes that are golden markers for DE versus hESC (from the papers)
+
+  + Golden_list_Up.grp - for LINCS 
+  + Golden_list_Down.grp - for LINCS
+  + Golden_list_Up_Probes.grp - for CMap O2
+  + Golden_list_Down_Probes.grp - for CMap O2
