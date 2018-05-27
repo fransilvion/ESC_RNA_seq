@@ -369,6 +369,46 @@ plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 sample_genes <- c("CDH2", "PDGFRA", "FGF4", "DKK4")
 plotGenes(sample_genes, cleaned_log_cpm_df, metadata)
 ```
+## Additional analysis of 24v36 hour time point (mesendoderm to definitive endoderm transition)
+
+```{r}
+#most transition upRegulated
+transitionUpRegulated <- topTable(contrastFitEb, number = Inf, p.value = 0.05, lfc = 1, coef = "v36v24")
+transitionUpRegulated <- transitionUpRegulated[with(transitionUpRegulated, order(-logFC)), ]
+head(transitionUpRegulated, 10) %>% kable()
+```
+```{r}
+plot(transitionUpRegulated$logFC[1:25], type="h", lwd = 10, lend="square", col = "red", ylab = "LogFC", main = "Up-regulated at 36 hours", xaxt='n', xlab = "")
+axis(1, at=1:25, labels=rownames(transitionUpRegulated)[1:25], las = 2)
+```
+
+UNC5C - Receptor for netrin required for axon guidance.
+FMOD - Affects the rate of fibrils formation. May have a primary role in collagen fibrillogenesis.
+TMOD1 - Blocks the elongation and depolymerization of the actin filaments at the pointed end. 
+HOXB2 - Sequence-specific transcription factor which is part of a developmental regulatory system that provides cells with specific positional identities on the anterior-posterior axis.
+HAND1 - Transcription factor that plays an essential role in both trophoblast-giant cells differentiation and in cardiac morphogenesis.
+RASGRP3 - Guanine nucleotide exchange factor (GEF) for Ras and Rap1
+IF16 - Gamma-interferon-inducible protein 16
+SHOX2 - May be a growth regulator and have a role in specifying neural systems involved in processing somatosensory information.
+IRX3 - Transcription factor. Involved in SHH-dependent neural patterning. 
+HAPLN1 - Stabilizes the aggregates of proteoglycan monomers with hyaluronic acid in the extracellular cartilage matrix.
+KIAA1462 - Junctional protein associated with coronary artery disease
+HOXB6 - Sequence-specific transcription factor which is part of a developmental regulatory system that provides cells with specific positional identities on the anterior-posterior axis.
+GRAP2 - Interacts with SLP-76 to regulate NF-AT activation.
+STAB2 - Phosphatidylserine receptor that enhances the engulfment of apoptotic cells. 
+HOXB3 - Sequence-specific transcription factor which is part of a developmental regulatory system that provides cells with specific positional identities on the anterior-posterior axis.
+C5orf65 - Proline-rich basic protein 1
+EGFLAM - Involved in both the retinal photoreceptor ribbon synapse formation and physiological functions of visual perception. 
+MEIS1 - Acts as a transcriptional regulator of PAX6.
+DLL3 - Inhibits primary neurogenesis. 
+NRP1 - The membrane-bound isoform 1 is a receptor involved in the development of the cardiovascular system
+PMP22 - Might be involved in growth regulation, and in myelinization in the peripheral nervous system.
+F2RL2 - Receptor for activated thrombin coupled to G proteins that stimulate phosphoinositide hydrolysis.
+BMP4 - Induces cartilage and bone formation. 
+ERBB4 - Tyrosine-protein kinase that plays an essential role as cell surface receptor for neuregulins and EGF family members and regulates development of the heart, the central nervous system and the mammary gland, gene transcription, cell proliferation, differentiation, migration and apoptosis
+SNPH - Inhibits SNARE complex formation by absorbing free syntaxin-1.
+
+http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0145389 - about collagen
 
 ## COMMENTS 
 - paper reports that CDX1, MSX2 and T are over expressed from 12 to 24h transition. I see only T and CDX1 (p-value cutoff 5e-02, FDR)
@@ -705,40 +745,31 @@ close(fileConn)
 # for CMAP (top 150 from up and 150 from down)
 
 ```{r}
+load("../../common_upRegulated_52158_75748.Rdata")
+load("../../common_downRegulated_52158_75748.Rdata")
+
 #not sure here...
 genRef <- topTable(contrastFitEb, number = Inf, p.value=cutoff, lfc=1)
 
 #taking upregulated genes
-referenceUpregulated <- genRef[all_upRegulated,]
+referenceUpregulated <- genRef[common_upRegulated_2,]
 referenceUpregulated <-  referenceUpregulated[with(referenceUpregulated, order(adj.P.Val)), ]
 referenceUpregulatedLogSorted <- referenceUpregulated[with(referenceUpregulated, order(logFC, decreasing = T)), ]
 
 #taking downregulated genes
-referenceDownregulated <- genRef[all_downRegulated,]
+referenceDownregulated <- genRef[common_downRegulated_2,]
 referenceDownregulated <-  referenceDownregulated[with(referenceDownregulated, order(adj.P.Val)), ]
 referenceDownregulatedLogSorted <- referenceDownregulated[with(referenceDownregulated, order(logFC)), ]
 
-#take 150 upregulated genes (by p.value)
-first_up <- rownames(referenceUpregulated)[1:150]
-fileConn<-file("~/Papers/CMAP/topCommonUpRegulated.grp")
-writeLines(first_up, fileConn)
-close(fileConn)
-
-#take 150 downregulated genes (by p.value)
-first_down <- rownames(referenceDownregulated)[1:150]
-fileConn2<-file("~/Papers/CMAP/topCommonDownRegulated.grp")
-writeLines(first_down, fileConn2)
-close(fileConn2)
-
 #take 150 upregulated genes (by logFC)
-first_up <- rownames(referenceUpregulatedLogSorted)#[1:150]
-fileConn<-file("~/Papers/CMAP/topCommonUpRegulatedLogSorted.grp")
+first_up <- rownames(referenceUpregulatedLogSorted)[1:150]
+fileConn<-file("~/Papers/CMAP/common_Upregulated_2_75748_LogSorted.grp")
 writeLines(first_up, fileConn)
 close(fileConn)
 
 #take 150 downregulated genes (by logFC)
 first_down <- rownames(referenceDownregulatedLogSorted)#[1:150]
-fileConn2<-file("~/Papers/CMAP/topCommonDownRegulatedLogSorted.grp")
+fileConn2<-file("~/Papers/CMAP/common_Downregulated_2_75748_LogSorted.grp")
 writeLines(first_down, fileConn2)
 close(fileConn2)
 ```
@@ -763,11 +794,11 @@ probe_down <- genesym.probeid %>%
 
 probe_down <- probe_down$probe_id
 
-fileConn2<-file("~/Papers/CMAP/topCommonDownRegulatedLogSortedProbes.grp")
+fileConn2<-file("~/Papers/CMAP/common_Upregulated_2_75748_LogSortedProbes.grp")
 writeLines(probe_down, fileConn2)
 close(fileConn2)
 
-fileConn2<-file("~/Papers/CMAP/topCommonUpRegulatedLogSortedProbes.grp")
+fileConn2<-file("~/Papers/CMAP/common_Downregulated_2_75748_LogSortedProbes.grp")
 writeLines(probe_up, fileConn2)
 close(fileConn2)
 ```
