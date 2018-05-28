@@ -1,0 +1,330 @@
+---
+title: "Analysis of mTOR inhibition in hESC"
+author: "German Novakovskiy"
+date: "May 27, 2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## mRNA-seq analysis using limma
+
+```{r}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(biomaRt)))
+```
+
+
+Here we analyze gene expression data from [this paper.](https://www.nature.com/articles/s41556-018-0088-1). 
+
+Human embryonic stem cells (hESCs) and human fibroblasts were treated with rapamycin for two and four days. For untreated controls and each treatment condition three biological replicates were analyzed. Cells were cultured in mTeSR 1 medium and the drug-containing medium was replaced every 24 h.
+
+Briefly, hESCs and fibroblasts were treated with 50nM rapamycin in the regular growth medium of each cell type. The medium was replaced every day with fresh rapamycin for both cell types. The cells were grown two or four days in the presence of rapamycin and then harvested.
+
+hESCs were cultured at 37 0C and 5% CO2 in feeder-free conditions on Matrigel-coated 6-well plates (Corning) in mTeSR1 (STEMCELL Technologies). Fibroblasts were cultured at 37 0C and 5% CO2 on uncoated 6-well plates (Corning).
+
+```{r}
+if (file.exists("GSE107965.Rdata")) {
+    # if previously downloaded
+    load("GSE107965.Rdata")
+} else {
+    # Get geo object that contains our data and phenotype information
+    geo_obj <- getGEO("GSE107965", GSEMatrix = TRUE)
+    geo_obj <- geo_obj[[1]]
+    save(geo_obj, file = "GSE107965.Rdata")
+}
+show(geo_obj)
+```
+```{r}
+#get covariate matrix
+geo_metadata <- pData(geo_obj)[, c("organism_ch1", "title", colnames(pData(geo_obj))[grep("characteristics", 
+    colnames(pData(geo_obj)))])]
+
+geo_metadata <- geo_metadata[1:9,]
+geo_metadata$time <- c(0, 0, 0, 2, 2, 2, 4, 4, 4)
+geo_metadata$time <- as.factor(geo_metadata$time)
+geo_metadata$treatment <- c(0, 0, 0, 1, 1, 1, 1, 1, 1)
+geo_metadata$treatment <- as.factor(geo_metadata$treatment)
+geo_metadata <- geo_metadata %>% dplyr::select(title, time, treatment)
+
+geo_metadata %>% kable()
+```
+
+Let's load the expression data (in raw counts):
+```{r}
+expr_counts <- read.csv("GSE107965_rawCounts.csv", header=TRUE)
+expr_counts <- expr_counts[,1:10]
+expr_counts <- expr_counts %>% column_to_rownames("ORF")
+
+head(expr_counts) %>% kable()
+```
+
+Usually one will filter genes with 10-15 read counts. We have 14175263 as a lowest library size. 10 reads in such library size will be: 10/14175263 *1e6 = 0.7. Let's go with 0.8 for voom
+```{r}
+#first let's create a edgeR DGElist object
+expr_counts_matrix <- as.matrix(expr_counts)
+
+DGE_bulk_time_course_ec <- DGEList(counts = expr_counts_matrix) 
+
+cpm <- cpm(DGE_bulk_time_course_ec)
+keep.exprs <-rowSums(cpm > 0.8) >= 3 
+
+DGE_bulk_time_course_ec <- DGE_bulk_time_course_ec[keep.exprs,,]
+
+dim(DGE_bulk_time_course_ec)
+```
+
+We have raw counts, thus we need to perform a library size normalization using edgeR:
+```{r}
+normalized_factors_expression <- calcNormFactors(DGE_bulk_time_course_ec, method = "TMM") #calculation of scaling factors (for library size)
+
+normalized_factors_expression$samples$norm.factors
+```
+
+Let's look at distribution of values:
+```{r}
+#raw count data distribution
+#removing gene column and transforming into matrix (for hist)
+data <- as.matrix(DGE_bulk_time_course_ec$counts)
+
+hist(data, main="GSE107965", xlim = c(0,50000), xlab = "Expression",
+     ylab = "Frequency", breaks = 3000)
+```
+
+
+Let's now perform RNA-seq analysis with limma, using only time factor variable (time column in metadata) and let's look separately at DE gene at each stage
+```{r}
+metadata_age <- geo_metadata[,c(1,2)]
+metadata_age %>% kable()
+```
+
+First, let's use contrast matrix:
+```{r}
+designMatrix <- model.matrix(~time, metadata_age)
+designMatrix %>% kable()
+```
+
+We can apply voom (which usually takes count data as an input and transforms them to logCPM) that estimates the mean-variance relationship and uses this to compute appropriate observation-level weights. The data are then ready for linear modelling.
+
+"Moreover,  the  voom-plot  provides  a  visual  check  on  the  level  of  filtering  performed  upstream.  If  filtering  of
+lowly-expressed  genes  is  insufficient,  a  drop  in  variance  levels  can  be  observed  at  the  low  end  of  the  expression
+scale  due  to  very  small  counts.  If  this  is  observed,  one  should  return  to  the  earlier  filtering  step  and  increase  the expression threshold applied to the dataset."
+
+```{r}
+after_voom_cpm <- voom(normalized_factors_expression, designMatrix, plot=TRUE)
+```
+```{r}
+hist(after_voom_cpm$E, main="cleaned GSE107965 - log2 transformed CPM", xlab = "Expression",
+     ylab = "Frequency")
+```
+
+Boxplots to explore the data:
+```{r}
+cleaned_log_cpm_df <- as.data.frame(after_voom_cpm$E)
+
+cleaned_log_cpm_df <- cleaned_log_cpm_df %>% rownames_to_column("gene")
+```
+
+Converting ensemble gene names (ENSG) to HGNC gene symbols:
+```{r}
+mart <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
+
+attributes <- c("ensembl_gene_id", "hgnc_symbol", 
+                "description")
+
+biomart_genes <- getBM(attributes=attributes, filters="ensembl_gene_id", 
+               values=cleaned_log_cpm_df$gene, mart=mart, uniqueRows=T)
+
+head(biomart_genes, 10) %>% kable()
+```
+```{r}
+not_in_biomart <- cleaned_log_cpm_df$gene[!cleaned_log_cpm_df$gene %in% biomart_genes$ensembl_gene_id]
+not_in_biomart
+```
+
+Just for simplicity remove them for now:
+```{r}
+cleaned_log_cpm_df <- cleaned_log_cpm_df %>%
+  filter(!gene %in% not_in_biomart)
+
+dim(cleaned_log_cpm_df)
+```
+```{r}
+cleaned_log_cpm_df$symbol <- biomart_genes$hgnc_symbol
+cleaned_log_cpm_df <- cleaned_log_cpm_df[,c(2:11)]
+
+cleaned_log_cpm_df <- cleaned_log_cpm_df[, c(10, 1:9)]
+colnames(cleaned_log_cpm_df)[1] <- c("gene")
+```
+
+```{r}
+meltedLogedBultTimeCourseEc <- melt(cleaned_log_cpm_df, id='gene')
+
+meltedLogedBultTimeCourseEc %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r}
+plotMDS(cleaned_log_cpm_df[,-1], cex=1.5)
+```
+```{r}
+time_course_Fit <- lmFit(after_voom_cpm, designMatrix)
+
+# apply eBayes() for moderated statistics
+time_course_Fit_Ebayes <- eBayes(time_course_Fit)
+
+plotSA(time_course_Fit_Ebayes)
+```
+```{r}
+cutoff <- 5e-02 #0.05 p value
+#adjust method by default is BH (equivalent to fdr)
+time_course_res <- decideTests(time_course_Fit_Ebayes, p.value = cutoff, lfc = 1)
+summary(time_course_res)
+```
+```{r}
+colnames(metadata_age) <- c("sample", "time")
+metadata_age %>% kable()
+```
+
+```{r}
+#function for plotting genes
+plotGenes <- function(genes, expressionMatrix, metadata) {
+  
+  expressionDataForGenes <- expressionMatrix %>%
+    #rownames_to_column("gene") %>%
+    filter(gene %in% genes) %>%
+    melt()
+  
+  colnames(expressionDataForGenes) <- c("gene", "sample", "expression")
+  expressionDataForGenes <- expressionDataForGenes %>%
+    left_join(metadata, id="time")
+  
+  expressionDataForGenes %>% 
+    ggplot(aes(x = time, y = expression, color=gene)) +
+    geom_point() +
+    geom_jitter() +
+    stat_summary(aes(y = expression, group=1), fun.y = "mean", geom="line", size=2) +
+    facet_wrap(~gene)
+}
+```
+
+```{r}
+sample_genes <- c("POU5F1", "NANOG", "SOX2")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+
+```{r}
+sample_genes <- c("CXCR4", "SOX17", "HNF1B", "KIT", "KRT19", "FOXA2")
+plotGenes(sample_genes, cleaned_log_cpm_df, metadata_age)
+```
+```{r}
+plotGenes(c("INHBA"), cleaned_log_cpm_df, metadata_age)
+```
+
+## Gene set enrichment analysis of GSE107965
+
+```{r}
+DEgenes_4days <- topTable(time_course_Fit_Ebayes, number = Inf, coef = "time4")
+
+ggplot(data = DEgenes_4days, aes(x = logFC, y = -log(adj.P.Val), color = (-log(adj.P.Val) > 3)))+
+  scale_colour_manual(name = 'p-value < 0.05', values = setNames(c('red','black'),c(T, F)), labels = c("False", "True"))+
+  geom_point()+
+  geom_vline(xintercept=0)+
+  geom_vline(xintercept=-2)+
+  geom_vline(xintercept=2)+
+  #xlim(-1.5,1.5)+
+  ylab("-log(p-value)")+
+  xlab("logFC")+
+  labs(title="Gene expression differences in 0h and 4 days treatment cells, GSE107965")+
+  theme_bw()+
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.border = element_blank(),
+        panel.background = element_blank()) +
+  theme(axis.title.x=element_text(size=12),
+        axis.text.y=element_text(size=12),
+        axis.title.y=element_text(size=14),
+        axis.ticks.x=element_blank(),
+        strip.text.x = element_text(size=14),
+        strip.background = element_rect(colour="white", fill="white"),
+        legend.text=element_text(size=15),
+        legend.title=element_text(size=14))
+```
+```{r}
+cleaned_biomart <- biomart_genes %>%
+  filter(hgnc_symbol != "")
+
+DEgenes_4days <- DEgenes_4days[rownames(DEgenes_4days) %in% cleaned_biomart$ensembl_gene_id,]
+DEgenes_4days <- DEgenes_4days[cleaned_biomart$ensembl_gene_id,]
+
+x <- biomart_genes
+x <- x %>% filter(ensembl_gene_id %in% rownames(DEgenes_4days))
+DEgenes_4days$gene <- x$hgnc_symbol
+
+ermineInputGeneScores <- DEgenes_4days %>% 
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("gene")
+
+head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
+```
+```{r}
+enrichmentResult <- precRecall(scores = ermineInputGeneScores, 
+                               scoreColumn = 1, # column 1 is the scores 
+                               bigIsBetter = TRUE, # larger logFC should be ranked higher
+                               annotation = "Generic_human", # ask ermineJ to use the Generic_human annotation file (will automatically download)
+                               aspects = "B", # look at only biological processes 
+                               iterations = 10000, # 10K sampling iterations so that results are stable
+                               geneSetDescription = "../GSE109658/GO.xml") # use the GO XML file in current directory
+
+enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+```{r}
+enrichmentResult$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Biological Process", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+Enrichment <- enrichmentResult$results
+Enrichment$Name <- as.factor(Enrichment$Name)
+
+Enrichment %>% 
+  dplyr::select(Name, NumGenes, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 5e-2) %>% 
+  head(25) %>% 
+  ggplot(aes(x = fct_reorder(Name, CorrectedMFPvalue), 
+             y = NumGenes, fill = CorrectedMFPvalue)) +
+  geom_col() +
+  labs(title = "Biological Processes - GSE109765 - 4 days", 
+       x = "", y = "Number of Genes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip() +
+  theme_light() 
+```
+
