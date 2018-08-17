@@ -225,6 +225,12 @@ time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 1)
 summary(time_course_res)
 ```
 
+For pathway enrichment analysis:
+```{r}
+time_course_109658 <- time_course_res
+save(time_course_109658, file = "time_course_109658")
+```
+
 Let's look at top upregulated genes at different stages:
 ```{r}
 hits1 <- time_course_res %>% 
@@ -402,6 +408,68 @@ We have `r nrow(upRegulated109658)` upregulated genes and `r nrow(downRegulated1
 save(upRegulated109658, file="upRegulated109658.Rdata")
 save(downRegulated109658, file="downRegulated109658.Rdata")
 ```
+
+# for CMAP (top 150 from up and 150 from down)
+
+```{r}
+load("../../common_upRegulated_52158_109658.Rdata")
+load("../../common_downRegulated_52158_109658.Rdata")
+
+#not sure here...
+genRef <- topTable(contrastFitEb, number = Inf, p.value=cutoff, lfc=1, coef = 'age4vage0')
+
+#taking upregulated genes
+referenceUpregulated <- genRef[common_upRegulated_3,]
+referenceUpregulated <-  referenceUpregulated[with(referenceUpregulated, order(adj.P.Val)), ]
+referenceUpregulatedLogSorted <- referenceUpregulated[with(referenceUpregulated, order(logFC, decreasing = T)), ]
+
+#taking downregulated genes
+referenceDownregulated <- genRef[common_downRegulated_3,]
+referenceDownregulated <-  referenceDownregulated[with(referenceDownregulated, order(adj.P.Val)), ]
+referenceDownregulatedLogSorted <- referenceDownregulated[with(referenceDownregulated, order(logFC)), ]
+
+#take 150 upregulated genes (by logFC)
+first_up <- rownames(referenceUpregulatedLogSorted)[1:150]
+fileConn<-file("~/Papers/CMAP/common_Upregulated_3_109658_LogSorted.grp")
+writeLines(first_up, fileConn)
+close(fileConn)
+
+#take 150 downregulated genes (by logFC)
+first_down <- rownames(referenceDownregulatedLogSorted)[1:150]
+fileConn2<-file("~/Papers/CMAP/common_Downregulated_3_109658_LogSorted.grp")
+writeLines(first_down, fileConn2)
+close(fileConn2)
+```
+
+To array probes:
+```{r}
+x <- hgu133aSYMBOL
+# Get the probe identifiers - gene symbol mappings
+mapped_probes <- mappedkeys(x)
+# Convert to a dataframe
+genesym.probeid <- as.data.frame(x[mapped_probes])
+head(genesym.probeid)
+```
+```{r}
+probe_up <- genesym.probeid %>%
+  filter(symbol %in% first_up) 
+
+probe_up <- probe_up$probe_id
+
+probe_down <- genesym.probeid %>%
+  filter(symbol %in% first_down) 
+
+probe_down <- probe_down$probe_id
+
+fileConn2<-file("~/Papers/CMAP/common_Downregulated_3_109658_LogSortedProbes.grp")
+writeLines(probe_down, fileConn2)
+close(fileConn2)
+
+fileConn2<-file("~/Papers/CMAP/common_Upregulated_3_109658_LogSortedProbes.grp")
+writeLines(probe_up, fileConn2)
+close(fileConn2)
+```
+
 
 # Gene set enrichment analysis of GSE109658
 
