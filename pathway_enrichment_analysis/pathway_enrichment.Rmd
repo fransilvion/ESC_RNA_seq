@@ -1,0 +1,101 @@
+---
+title: "Pathway enrichment analysis"
+author: "German Novakovskiy"
+date: "August 17, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+```
+
+Pathway enrichment analysis of individual definitive endoderm differentiation experiments (from GEO) and LINS data
+
+## Analysis of pathways
+
+All pathways from KEGG/REACTOME for analysis with ErmineR should be dowloaded from here (http://www.broadinstitute.org/gsea/msigdb/collections.jsp#C2) in gmt format. 
+
+### Analysis of REACTOME pathways
+
+Reading data from file:
+```{r}
+x <- scan("~/ESC_RNA_seq/pathway_enrichment_analysis/ReactomePathways.tsv", what = "", sep = "\n")
+x <- strsplit(x, "[ \t]+")
+max.col <- max(sapply(x, length))
+
+## specify col.names as ?read.table suggests
+cn <- paste("V", 1:max.col, sep = "")
+reactome_pathways <- read.table("~/ESC_RNA_seq/pathway_enrichment_analysis/ReactomePathways.tsv", fill = TRUE, 
+                 col.names = cn, sep = '\t', quote = "")
+
+reactome_pathways[1:5, 1:10] %>% kable()
+```
+
+There are `r nrow(reactome_pathways)` pathways in total.
+
+Distribution of counts of genes in each pathway for REACTOME:
+```{r}
+calculateSize <- function(row_of_df){
+  x <- row_of_df[3:length(row_of_df)]
+  x <- x[!is.na(x)]
+  return(sum(x != ""))
+}
+
+sizes_of_pathways <- apply(reactome_pathways, 1, calculateSize)
+
+hist(sizes_of_pathways, breaks = 50, col = "red")
+```
+
+
+## Analysis of GEO individual experiments
+
+### Analysis of GSE109658
+
+Load DE data:
+```{r}
+load("../analysis_of_public_data/GSE109658/DEgenes_0h_96h_109658.Rdata")
+```
+
+Sorted log Fold Changes give us a sorted list:
+```{r}
+ermineInputGeneScores <- DEgenes_0h_96h_109658 %>% 
+  rownames_to_column("gene") %>%
+  dplyr::select(gene, logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(logFC)) %>% 
+  column_to_rownames("gene")
+
+head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
+```
+
+```{r}
+enrichmentResult <- precRecall(scores = ermineInputGeneScores, 
+                               scoreColumn = 1, # column 1 is the scores 
+                               bigIsBetter = TRUE, # larger logFC should be ranked higher
+                               annotation = "Generic_human", # ask ermineJ to use the Generic_human annotation file (will automatically download)
+                               aspects = "B", # look at only biological processes 
+                               iterations = 10000, # 10K sampling iterations so that results are stable
+                               geneSetDescription = "GO.xml") # use the GO XML file in current directory
+
+enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
