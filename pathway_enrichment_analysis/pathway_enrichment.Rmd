@@ -2,7 +2,7 @@
 title: "Pathway enrichment analysis"
 author: "German Novakovskiy"
 date: "August 17, 2018"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -26,6 +26,8 @@ suppressWarnings(suppressMessages(library(readxl)))
 suppressWarnings(suppressMessages(library(VennDiagram)))
 suppressMessages(suppressWarnings(library(ermineR)))
 suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(ReactomePA)))
+suppressMessages(suppressWarnings(library(clusterProfiler)))
 ```
 
 Pathway enrichment analysis of individual definitive endoderm differentiation experiments (from GEO) and LINS data
@@ -65,6 +67,33 @@ sizes_of_pathways <- apply(reactome_pathways, 1, calculateSize)
 hist(sizes_of_pathways, breaks = 50, col = "red")
 ```
 
+Sorting pathways by size:
+```{r}
+pathways_amount <- as.data.frame(reactome_pathways[,2])
+colnames(pathways_amount) <- "Pathway"
+pathways_amount$Size <- sizes_of_pathways
+
+pathways_amount <- pathways_amount %>%
+  arrange(desc(Size))
+```
+
+We see that are the largest pathways are very broad:
+```{r}
+head(pathways_amount, n = 10) %>% kable()
+```
+
+However, the smallest pathways contain just one gene:
+```{r}
+tail(pathways_amount, n = 10) %>% kable()
+```
+
+In our enrichment analysis we will consider only pathways that contain at least 15 genes and no more than 300 genes:
+```{r}
+selected_pathways <- pathways_amount %>% 
+  filter(Size >= 15 & Size <= 300)
+```
+
+There are `r nrow(selected_pathways)` of such pathways.
 
 ## Analysis of GEO individual experiments
 
@@ -85,17 +114,54 @@ ermineInputGeneScores <- DEgenes_0h_96h_109658 %>%
   arrange(desc(logFC)) %>% 
   column_to_rownames("gene")
 
+save(ermineInputGeneScores, file = "ermineInputScores.Rdata")
 head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
 ```
 
 ```{r}
-enrichmentResult <- precRecall(scores = ermineInputGeneScores, 
-                               scoreColumn = 1, # column 1 is the scores 
-                               bigIsBetter = TRUE, # larger logFC should be ranked higher
-                               annotation = "Generic_human", # ask ermineJ to use the Generic_human annotation file (will automatically download)
-                               aspects = "B", # look at only biological processes 
-                               iterations = 10000, # 10K sampling iterations so that results are stable
-                               geneSetDescription = "GO.xml") # use the GO XML file in current directory
+#enrichmentResult <- precRecall(scores = ermineInputGeneScores, 
+#                               scoreColumn = 1, # column 1 is the scores 
+#                               bigIsBetter = TRUE, # larger logFC should be ranked higher
+#                               annotation = "Generic_human_custom", 
+#                               aspects = "B", # look at only biological processes 
+#                               iterations = 10000, # 10K sampling iterations so that results are stable
+#                               geneSetDescription = "GO.xml",
+#                               customGeneSets = "ReactomePathways.tsv",
+#                               minClassSize = 15,
+#                               maxClassSize = 300) 
 
-enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+#enrichmentResult$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
 ```
+
+While ErmineR is being fixed I will try GSEA for Reactome with specified bioconductor package: ReactomePA
+```{r}
+#converting symbols to EntrezID
+geneSymbols <- rownames(ermineInputGeneScores)
+geneEntrez <- bitr(geneSymbols, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+
+head(geneEntrez)
+```
+```{r}
+ermineInputGeneScoresRPA <- ermineInputGeneScores %>%
+  rownames_to_column("SYMBOL") %>%
+  filter(SYMBOL %in% geneEntrez$SYMBOL)
+
+inputGSEA <- merge(ermineInputGeneScoresRPA, geneEntrez, sort=FALSE)
+
+inputGSEA <- inputGSEA %>%
+  dplyr::select(logFC, ENTREZID) %>%
+  column_to_rownames('ENTREZID')
+```
+
+Performing GSEA with the input:
+```{r}
+test2 <- inputGSEA$logFC
+names(test2) <- rownames(inputGSEA)
+
+y <- gsePathway(test2, nPerm=10000,
+                pvalueCutoff=0.05,
+                pAdjustMethod="BH", verbose=FALSE, minGSSize = 15, maxGSSize = 300)
+
+dotplot(y, showCategory=15)
+```
+
