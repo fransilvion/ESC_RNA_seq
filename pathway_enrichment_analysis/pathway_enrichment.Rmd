@@ -34,7 +34,7 @@ Pathway enrichment analysis of individual definitive endoderm differentiation ex
 
 ## Analysis of pathways
 
-All pathways from KEGG/REACTOME for analysis with ErmineR should be dowloaded from here (http://www.broadinstitute.org/gsea/msigdb/collections.jsp#C2) in gmt format. 
+KEGG pathways were dowloaded from here (http://www.broadinstitute.org/gsea/msigdb/collections.jsp#C2) in gmt format. Wikipathways were downloaded from the official website (http://data.wikipathways.org/20180810/gmt/), latest version August 10, 2018. Reactome pathways (gmt file) were dowloaded from here (https://reactome.org/download/current/ReactomePathways.gmt.zip).
 
 ### Analysis of REACTOME pathways
 
@@ -147,6 +147,59 @@ kegg_selected_pathways <- kegg_pathways_amount %>%
 
 There are `r nrow(kegg_selected_pathways)` of such pathways.
 
+### Analysis of Wikipathways
+
+Reading data from file:
+```{r}
+x <- scan("~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt", what = "", sep = "\n")
+x <- strsplit(x, "[ \t]+")
+max.col <- max(sapply(x, length))
+
+## specify col.names as ?read.table suggests
+cn <- paste("V", 1:max.col, sep = "")
+wiki_pathways <- read.table("~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt", fill = TRUE, 
+                 col.names = cn, sep = '\t', quote = "")
+
+wiki_pathways <- wiki_pathways[,c(2,1,3:ncol(wiki_pathways))]
+wiki_pathways[1:5, 1:10] %>% kable()
+```
+
+There are `r nrow(wiki_pathways)` pathways in total.
+
+Distribution of counts of genes in each pathway for Wikipathways:
+```{r}
+wiki_sizes_of_pathways <- apply(wiki_pathways, 1, calculateSize)
+
+hist(wiki_sizes_of_pathways, breaks = 50, col = "red")
+```
+
+Sorting pathways by size:
+```{r}
+wiki_pathways_amount <- as.data.frame(wiki_pathways[,2])
+colnames(wiki_pathways_amount) <- "Pathway"
+wiki_pathways_amount$Size <- wiki_sizes_of_pathways
+
+wiki_pathways_amount <- wiki_pathways_amount %>%
+  arrange(desc(Size))
+```
+
+Here are the largest pathways from Wiki:
+```{r}
+head(wiki_pathways_amount, n = 10) %>% kable()
+```
+
+Some pathways from Wiki contain just one gene.
+```{r}
+tail(wiki_pathways_amount, n = 10) %>% kable()
+```
+
+In our enrichment analysis we will consider only pathways that contain at least 15 genes and no more than 300 genes:
+```{r}
+wiki_selected_pathways <- wiki_pathways_amount %>% 
+  filter(Size >= 15 & Size <= 300)
+```
+
+There are `r nrow(reactome_selected_pathways)` of such pathways.
 
 ## Analysis of GEO individual experiments
 
@@ -220,6 +273,8 @@ inputGSEA <- inputGSEA %>%
 
 Performing GSEA with the input:
 ```{r}
+#test2 variable contains data with absolute log fold change
+#and entrez id
 test2 <- inputGSEA$absolute_logFC
 names(test2) <- rownames(inputGSEA)
 
@@ -252,6 +307,32 @@ enrichmentResultKEGG$results %>%
   arrange(CorrectedMFPvalue) %>% 
   head(10) %>% 
   kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+
+#### Wikipathways
+
+```{r}
+entrezScores <- as.data.frame(test2)
+enrichmentResultWiki <- precRecall(scores = entrezScores,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+enrichmentResultWiki$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+
+```{r}
+enrichmentResultWiki$results %>% 
+  dplyr::select(ID, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("ID", "Corrected p-value", 
                                    "Corrected MF p-value"))
 ```
 
