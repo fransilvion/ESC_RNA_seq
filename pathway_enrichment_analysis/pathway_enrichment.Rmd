@@ -28,6 +28,7 @@ suppressMessages(suppressWarnings(library(ermineR)))
 suppressMessages(suppressWarnings(library(hgu133a.db)))
 suppressMessages(suppressWarnings(library(ReactomePA)))
 suppressMessages(suppressWarnings(library(clusterProfiler)))
+suppressMessages(suppressWarnings(library(fgsea)))
 ```
 
 Pathway enrichment analysis of individual definitive endoderm differentiation experiments (from GEO) and LINS data
@@ -336,3 +337,53 @@ enrichmentResultWiki$results %>%
                                    "Corrected MF p-value"))
 ```
 
+#### Trying to run everything with fgsea
+
+```{r}
+# scores forfgsea
+ermineInputGeneScoresFGSEA <- DEgenes_0h_96h_109658 %>% 
+  rownames_to_column("gene") %>%
+  #mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(logFC)) %>% 
+  column_to_rownames("gene")
+
+scoresFGSEA <- ermineInputGeneScoresFGSEA$logFC
+names(scoresFGSEA) <- rownames(ermineInputGeneScoresFGSEA)
+```
+
+Reactome (check the output columns!!!):
+```{r}
+pathwaysReactome <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/ReactomePathways.tsv")
+
+fgseaRes <- fgsea(pathwaysReactome, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#activated pathways
+activPathwaysReactome <- fgseaRes %>% arrange(padj) %>% filter(NES > 0)
+```
+
+```{r}
+#genes that are involved in TGF-beta pathway are enriched at the beginning of the list;
+#means that this pathway is activated
+plotEnrichment(pathwaysReactome[["R-HSA-9006936"]], scoresFGSEA) + labs(title="Signaling by TGF-beta family members")
+```
+
+
+KEGG (check the output columns!!!):
+```{r}
+pathwaysKEGG <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt")
+
+fgseaRes <- fgsea(pathwaysKEGG, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#activated pathways
+activPathwaysKEGG <- fgseaRes %>% arrange(padj) %>% filter(NES > 0)
+```
+
+Results for KEGG also demonstrate enrichment of TGF-beta pathway:
+```{r}
+#genes that are involved in TGF-beta pathway are enriched at the beginning of the list;
+#means that this pathway is activated
+plotEnrichment(pathwaysKEGG[["KEGG_TGF_BETA_SIGNALING_PATHWAY"]], scoresFGSEA)+ labs(title="Signaling by TGF-beta family members")
+```
