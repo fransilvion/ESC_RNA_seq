@@ -1,5 +1,5 @@
 ---
-title: "Pathway enrichment analysis"
+title: "Pathway enrichment analysis, GEO109658"
 author: "German Novakovskiy"
 date: "August 17, 2018"
 output: github_document
@@ -202,13 +202,11 @@ wiki_selected_pathways <- wiki_pathways_amount %>%
 
 There are `r nrow(reactome_selected_pathways)` of such pathways.
 
-## Analysis of GEO individual experiments
-
-### Analysis of GSE109658
+## Analysis of GSE109658
 
 Load DE data:
 ```{r}
-load("../analysis_of_public_data/GSE109658/DEgenes_0h_96h_109658.Rdata")
+load("~/ESC_RNA_seq/analysis_of_public_data/GSE109658/DEgenes_0h_96h_109658.Rdata")
 ```
 
 Sorted log Fold Changes give us a sorted list:
@@ -222,7 +220,7 @@ ermineInputGeneScores <- DEgenes_0h_96h_109658 %>%
   arrange(desc(absolute_logFC)) %>% 
   column_to_rownames("gene")
 
-save(ermineInputGeneScores, file = "ermineInputScores.Rdata")
+save(ermineInputGeneScores, file = "ermineInputScores109658.Rdata")
 head(ermineInputGeneScores, 10) %>% kable() # print the first few rows
 ```
 
@@ -350,35 +348,107 @@ ermineInputGeneScoresFGSEA <- DEgenes_0h_96h_109658 %>%
   arrange(desc(logFC)) %>% 
   column_to_rownames("gene")
 
+
 scoresFGSEA <- ermineInputGeneScoresFGSEA$logFC
 names(scoresFGSEA) <- rownames(ermineInputGeneScoresFGSEA)
+
+#for wikipathways
+ermineInputGeneScoresWiki <- ermineInputGeneScoresFGSEA %>%
+  rownames_to_column("SYMBOL") %>%
+  filter(SYMBOL %in% geneEntrez$SYMBOL)
+
+scoresWikiFGSEA <- merge(ermineInputGeneScoresWiki, geneEntrez, sort=FALSE)
+
+scoresWikiFGSEA <- scoresWikiFGSEA %>%
+  dplyr::select(logFC, ENTREZID) %>%
+  column_to_rownames('ENTREZID')
+
+scoresWiki <- scoresWikiFGSEA$logFC
+names(scoresWiki) <- rownames(scoresWikiFGSEA)
 ```
 
-Reactome (check the output columns!!!):
+Reactome:
 ```{r}
 pathwaysReactome <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/ReactomePathways.tsv")
 
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
 fgseaRes <- fgsea(pathwaysReactome, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+reactomeIdPathway <- reactome_pathways[,c(1,2)]
+colnames(reactomeIdPathway) <- c("pathway", "Description") 
+fgseaRes <- merge(fgseaRes, reactomeIdPathway, sort = FALSE)
 
 #activated pathways
-activPathwaysReactome <- fgseaRes %>% arrange(padj) %>% filter(NES > 0)
+activPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "Description", "padj", "ES", "NES", "nMoreExtreme"))
+
+#inactivated pathways
+inactivPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "Description", "padj", "ES", "NES", "nMoreExtreme"))
 ```
+
+There are `r nrow(activPathwaysReactome)` activated and `r nrow(inactivPathwaysReactome)` inactivated pathways in Reactome for this data set.
+
+All active pathways:
+```{r}
+activPathwaysReactome %>% kable()
+```
+
 
 ```{r}
-#genes that are involved in TGF-beta pathway are enriched at the beginning of the list;
+#genes that are involved in signaling by Nodal (activin mimicks it) are enriched at the beginning of the list;
 #means that this pathway is activated
-plotEnrichment(pathwaysReactome[["R-HSA-9006936"]], scoresFGSEA) + labs(title="Signaling by TGF-beta family members")
+plotEnrichment(pathwaysReactome[["R-HSA-1181150"]], scoresFGSEA) + labs(title="Signaling by NODAL")
 ```
 
 
-KEGG (check the output columns!!!):
+KEGG:
 ```{r}
 pathwaysKEGG <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt")
 
 fgseaRes <- fgsea(pathwaysKEGG, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
 
 #activated pathways
-activPathwaysKEGG <- fgseaRes %>% arrange(padj) %>% filter(NES > 0)
+activPathwaysKEGG <- fgseaRes %>% arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05)
+
+#inactivated pathways
+inactivPathwaysKEGG <- fgseaRes %>% arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05)
+```
+
+There are `r nrow(activPathwaysKEGG)` activated and `r nrow(inactivPathwaysKEGG)` inactivated pathways in Reactome for this data set.
+
+All active pathways:
+```{r}
+activPathwaysKEGG
+```
+
+Results for KEGG also demonstrate enrichment of TGF-beta pathway:
+```{r}
+#genes that are involved in TGF-beta pathway are enriched at the beginning of the list;
+#means that this pathway is activated
+plotEnrichment(pathwaysKEGG[["KEGG_TGF_BETA_SIGNALING_PATHWAY"]], scoresFGSEA)+ labs(title="Signaling by TGF-beta family members")
+```
+
+WikiPathways:
+```{r}
+pathwaysWiki <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt")
+
+fgseaRes <- fgsea(pathwaysWiki, scoresWiki, minSize=15, maxSize=300, nperm=10000)
+
+#activated pathways
+activPathwaysWiki <- fgseaRes %>% arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05)
+
+#inactivated pathways
+inactivPathwaysWiki <- fgseaRes %>% arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05)
+```
+
+There are `r nrow(activPathwaysWiki)` activated and `r nrow(inactivPathwaysWiki)` inactivated pathways in Reactome for this data set.
+
+All active pathways:
+```{r}
+activPathwaysKEGG
 ```
 
 Results for KEGG also demonstrate enrichment of TGF-beta pathway:
