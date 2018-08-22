@@ -82,7 +82,7 @@ enrichmentResultReactome <- precRecall(scores = ermineInputGeneScores,
                                minClassSize = 15,
                                maxClassSize = 300)
 
-enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+#enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
 ```
 ```{r}
 enrichmentResultReactome$results %>% 
@@ -142,7 +142,7 @@ enrichmentResultKEGG <- precRecall(scores = ermineInputGeneScores,
                                minClassSize = 15,
                                maxClassSize = 300)
 
-enrichmentResultKEGG$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+#enrichmentResultKEGG$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
 ```
 
 ```{r}

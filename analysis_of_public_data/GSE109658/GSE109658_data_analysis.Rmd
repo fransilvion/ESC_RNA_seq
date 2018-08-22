@@ -371,6 +371,7 @@ contrastMatrix <- makeContrasts(
   age1vage0 = age1 - age0,
   age3vage0 = age3 - age0,
   age4vage0 = age4 - age0,
+  age4vage1 = age4 - age1,
   levels = designMatrix
 )
 
@@ -474,12 +475,15 @@ if (!file.exists("GO.xml")) { goToday("GO.xml") }
 
 DEgenes_0h_96h <- topTable(contrastFitEb, number = Inf, coef = "age4vage0")
 DEgenes_0h_24h <- topTable(contrastFitEb, number = Inf, coef = "age1vage0")
+DEgenes_24h_96h <- topTable(contrastFitEb, number = Inf, coef = "age4vage1")
 
 #for pathway enrichment analysis
 DEgenes_0h_96h_109658 <- DEgenes_0h_96h
 DEgenes_0h_24h_109658 <- DEgenes_0h_24h
+DEgenes_24h_96h_109658 <- DEgenes_24h_96h
 save(DEgenes_0h_96h_109658, file = "DEgenes_0h_96h_109658.Rdata")
 save(DEgenes_0h_24h_109658, file = "DEgenes_0h_24h_109658.Rdata")
+save(DEgenes_24h_96h_109658, file = "DEgenes_24h_96h_109658.Rdata")
 ################################
 
 
