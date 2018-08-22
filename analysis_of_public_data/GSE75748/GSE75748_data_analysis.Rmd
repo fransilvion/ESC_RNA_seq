@@ -304,7 +304,14 @@ plotGenes <- function(genes, expressionMatrix, metadata) {
     ggplot(aes(x = time, y = expression, color=gene)) +
     geom_point() +
     geom_jitter() +
-    stat_summary(aes(y = expression, group=1), fun.y = "mean", geom="line", size=2) +
+    stat_summary(aes(y = expression, group=1), fun.y = "mean", geom="line", size=3) +
+    theme(axis.text.y=element_text(size=12),
+        axis.title.y=element_text(size=18),
+        strip.text.x = element_text(size=24),
+        axis.title.x=element_text(size=18),
+        strip.background = element_rect(colour="white", fill="white"),
+        legend.text=element_text(size=15),
+        legend.title=element_text(size=14))+
     facet_wrap(~gene)
 }
 
@@ -658,6 +665,8 @@ designMatrix <- model.matrix(~0 + time, metadata_time)
 
 contrastMatrix <- makeContrasts(
   v96hv0h = time96h - time0h,
+  v96hv24h = time96h - time24h,
+  v24hv0h = time24h - time0h,
   levels = designMatrix
 )
 
@@ -808,7 +817,17 @@ close(fileConn2)
 ```{r}
 if (!file.exists("GO.xml")) { goToday("GO.xml") }
 
-DEgenes_0h_96h <- topTable(contrastFitEb, number = Inf)
+DEgenes_0h_96h <- topTable(contrastFitEb, number = Inf, coef = "v96hv0h")
+DEgenes_0h_24h <- topTable(contrastFitEb, number = Inf, coef = "v24hv0h")
+DEgenes_24h_96h <- topTable(contrastFitEb, number = Inf, coef = "v96hv24h")
+
+DEgenes_0h_96h_75748 <- DEgenes_0h_96h
+DEgenes_0h_24h_75748 <- DEgenes_0h_24h
+DEgenes_24h_96h_75748 <- DEgenes_24h_96h
+
+save(DEgenes_0h_96h_75748, file = "DEgenes_0h_96h_75748.Rdata")
+save(DEgenes_0h_24h_75748, file = "DEgenes_0h_24h_75748.Rdata")
+save(DEgenes_24h_96h_75748, file = "DEgenes_24h_96h_75748.Rdata")
 
 ggplot(data = DEgenes_0h_96h, aes(x = logFC, y = -log(adj.P.Val), color = (-log(adj.P.Val) > 3)))+
   scale_colour_manual(name = 'p-value < 0.05', values = setNames(c('red','black'),c(T, F)), labels = c("False", "True"))+

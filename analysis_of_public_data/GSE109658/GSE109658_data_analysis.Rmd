@@ -24,6 +24,7 @@ suppressWarnings(suppressMessages(library(edgeR)))
 suppressWarnings(suppressMessages(library(readxl)))
 suppressWarnings(suppressMessages(library(VennDiagram)))
 suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
 ```
 
 
@@ -225,12 +226,6 @@ time_course_res <- decideTests(contrastFitEb, p.value = cutoff, lfc = 1)
 summary(time_course_res)
 ```
 
-For pathway enrichment analysis:
-```{r}
-time_course_109658 <- time_course_res
-save(time_course_109658, file = "time_course_109658")
-```
-
 Let's look at top upregulated genes at different stages:
 ```{r}
 hits1 <- time_course_res %>% 
@@ -373,6 +368,7 @@ head(commonGenesTrends) %>% kable()
 ```
 ```{r}
 contrastMatrix <- makeContrasts(
+  age1vage0 = age1 - age0,
   age3vage0 = age3 - age0,
   age4vage0 = age4 - age0,
   levels = designMatrix
@@ -477,6 +473,15 @@ close(fileConn2)
 if (!file.exists("GO.xml")) { goToday("GO.xml") }
 
 DEgenes_0h_96h <- topTable(contrastFitEb, number = Inf, coef = "age4vage0")
+DEgenes_0h_24h <- topTable(contrastFitEb, number = Inf, coef = "age1vage0")
+
+#for pathway enrichment analysis
+DEgenes_0h_96h_109658 <- DEgenes_0h_96h
+DEgenes_0h_24h_109658 <- DEgenes_0h_24h
+save(DEgenes_0h_96h_109658, file = "DEgenes_0h_96h_109658.Rdata")
+save(DEgenes_0h_24h_109658, file = "DEgenes_0h_24h_109658.Rdata")
+################################
+
 
 ggplot(data = DEgenes_0h_96h, aes(x = logFC, y = -log(adj.P.Val), color = (-log(adj.P.Val) > 3)))+
   scale_colour_manual(name = 'p-value < 0.05', values = setNames(c('red','black'),c(T, F)), labels = c("False", "True"))+
