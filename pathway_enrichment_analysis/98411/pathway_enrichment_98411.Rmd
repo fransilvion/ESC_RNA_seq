@@ -1,0 +1,486 @@
+---
+title: "Pathway enrichment analysis, GSE98411"
+author: "German Novakovskiy"
+date: "August 23, 2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(ReactomePA)))
+suppressMessages(suppressWarnings(library(clusterProfiler)))
+suppressMessages(suppressWarnings(library(fgsea)))
+```
+
+
+## Analysis of first day of differentiation 0h VS 24 h (formation of anterior Primitive streak, mesodendoderm)
+
+Load DE data:
+```{r}
+load("~/ESC_RNA_seq/analysis_of_public_data/GSE98411/DEgenes_0h_24h_98411.Rdata")
+```
+
+Sorted log Fold Changes give us a ranked list:
+```{r}
+#absolute Log fold changes for ermineR
+ermineInputGeneScores <- DEgenes_0h_24h_98411 %>% 
+  rownames_to_column("gene") %>%
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("gene")
+
+#exact log fold changes for fgsea
+# scores forfgsea
+scoresFGSEADF <- DEgenes_0h_24h_98411 %>% 
+  rownames_to_column("gene") %>%
+  #mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(logFC)) %>% 
+  column_to_rownames("gene")
+
+
+scoresFGSEA <- scoresFGSEADF$logFC
+names(scoresFGSEA) <- rownames(scoresFGSEADF)
+
+```
+
+### Reactome
+#### ErmineR Reactome pathways
+
+```{r}
+enrichmentResultReactome <- precRecall(scores = ermineInputGeneScores,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/Human_Reactome_August_01_2018_symbol.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+```{r}
+enrichmentResultReactome$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineReactome <- enrichmentResultReactome$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineReactome)` enriched Reactome pathways with ermineR
+
+#### FGSEA Reactome pathways
+
+```{r}
+pathwaysReactome <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Human_Reactome_August_01_2018_symbol.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysReactome, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysReactome)` up-regulated and `r nrow(downPathwaysReactome)` down-regulated Reactome pathways with fgsea
+
+
+### KEGG pathways
+#### ErmineR KEGG pathways
+
+```{r}
+enrichmentResultKEGG <- precRecall(scores = ermineInputGeneScores,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultKEGG$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+
+```{r}
+enrichmentResultKEGG$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineKEGG <- enrichmentResultKEGG$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineKEGG)` enriched KEGG pathways with ermineR. 
+
+#### FGSEA KEGG pathways
+
+```{r}
+pathwaysKEGG <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysKEGG, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysKEGG <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysKEGG <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` down-regulated Reactome pathways with fgsea.
+
+```{r}
+upPathwaysKEGG %>% kable()
+```
+
+## Analysis of second-fourth days of differentiation 24h VS 96h (formation of definitive endoderm from APS)
+
+Load DE data:
+```{r}
+load("~/ESC_RNA_seq/analysis_of_public_data/GSE98411/DEgenes_24h_72h_98411.Rdata")
+```
+
+Sorted log Fold Changes give us a ranked list:
+```{r}
+#absolute Log fold changes for ermineR
+ermineInputGeneScores <- DEgenes_24h_72h_98411 %>% 
+  rownames_to_column("gene") %>%
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("gene")
+
+#exact log fold changes for fgsea
+# scores forfgsea
+scoresFGSEADF <- DEgenes_24h_72h_98411 %>% 
+  rownames_to_column("gene") %>%
+  #mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(logFC)) %>% 
+  column_to_rownames("gene")
+
+
+scoresFGSEA <- scoresFGSEADF$logFC
+names(scoresFGSEA) <- rownames(scoresFGSEADF)
+
+```
+
+### Reactome
+#### ErmineR Reactome pathways
+
+```{r}
+enrichmentResultReactome <- precRecall(scores = ermineInputGeneScores,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/Human_Reactome_August_01_2018_symbol.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+```{r}
+enrichmentResultReactome$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineReactome <- enrichmentResultReactome$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineReactome)` enriched Reactome pathways with ermineR
+
+#### FGSEA Reactome pathways
+
+```{r}
+pathwaysReactome <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Human_Reactome_August_01_2018_symbol.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysReactome, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysReactome)` up-regulated and `r nrow(downPathwaysReactome)` down-regulated Reactome pathways with fgsea
+
+```{r}
+upPathwaysReactome %>% kable()
+```
+
+
+### KEGG pathways
+#### ErmineR KEGG pathways
+
+```{r}
+enrichmentResultKEGG <- precRecall(scores = ermineInputGeneScores,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultKEGG$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+
+```{r}
+enrichmentResultKEGG$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineKEGG <- enrichmentResultKEGG$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineKEGG)` enriched KEGG pathways with ermineR. 
+
+#### FGSEA KEGG pathways
+
+```{r}
+pathwaysKEGG <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysKEGG, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysKEGG <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysKEGG <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` down-regulated Reactome pathways with fgsea.
+
+```{r}
+upPathwaysKEGG %>% kable()
+```
+
+## Analysis of whole differentiation process 0h VS 96 h (formation of Definitive endoderm from hESC)
+
+Load DE data:
+```{r}
+load("~/ESC_RNA_seq/analysis_of_public_data/GSE98411/DEgenes_0h_72h_98411.Rdata")
+```
+
+Sorted log Fold Changes give us a ranked list:
+```{r}
+#absolute Log fold changes for ermineR
+ermineInputGeneScores <- DEgenes_0h_72h_98411 %>% 
+  rownames_to_column("gene") %>%
+  mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, absolute_logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(absolute_logFC)) %>% 
+  column_to_rownames("gene")
+
+#exact log fold changes for fgsea
+# scores forfgsea
+scoresFGSEADF <- DEgenes_0h_72h_98411 %>% 
+  rownames_to_column("gene") %>%
+  #mutate(absolute_logFC = abs(logFC)) %>% 
+  dplyr::select(gene, logFC) %>% 
+  na.omit() %>% 
+  as.data.frame() %>% 
+  arrange(desc(logFC)) %>% 
+  column_to_rownames("gene")
+
+
+scoresFGSEA <- scoresFGSEADF$logFC
+names(scoresFGSEA) <- rownames(scoresFGSEADF)
+
+```
+
+### Reactome
+#### ErmineR Reactome pathways
+
+```{r}
+enrichmentResultReactome <- precRecall(scores = ermineInputGeneScores,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/Human_Reactome_August_01_2018_symbol.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+```{r}
+enrichmentResultReactome$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineReactome <- enrichmentResultReactome$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineReactome)` enriched Reactome pathways with ermineR
+
+#### FGSEA Reactome pathways
+
+```{r}
+pathwaysReactome <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Human_Reactome_August_01_2018_symbol.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysReactome, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysReactome <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysReactome)` up-regulated and `r nrow(downPathwaysReactome)` down-regulated Reactome pathways with fgsea
+
+```{r}
+upPathwaysReactome %>% kable()
+```
+
+
+### KEGG pathways
+#### ErmineR KEGG pathways
+
+```{r}
+enrichmentResultKEGG <- precRecall(scores = ermineInputGeneScores,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultKEGG$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+
+```{r}
+enrichmentResultKEGG$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  head(10) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineKEGG <- enrichmentResultKEGG$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineKEGG)` enriched KEGG pathways with ermineR. 
+
+#### FGSEA KEGG pathways
+
+```{r}
+pathwaysKEGG <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysKEGG, scoresFGSEA, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysKEGG <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysKEGG <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` down-regulated Reactome pathways with fgsea.
+
+```{r}
+upPathwaysKEGG %>% kable()
+```
