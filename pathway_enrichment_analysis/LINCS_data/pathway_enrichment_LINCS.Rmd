@@ -1,0 +1,208 @@
+---
+title: "Pathway analysis of LINCS data"
+author: "German Novakovskiy"
+date: "August 23, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(ReactomePA)))
+suppressMessages(suppressWarnings(library(clusterProfiler)))
+suppressMessages(suppressWarnings(library(fgsea)))
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(rlist)))
+```
+
+# Loading and inspecting the data
+
+Loading Gene expression data.
+
+The Fold Change matrix itself. The data has been log2-transformed. The columns are individual comparisons (i.e. treatment vs control); the rows are genes. The column names are numbers mapping directly to the metadata row (in File 2 below); The row names are gene EntrezID Numbers (maps to pr_gene_id in Gene_Info.txt). 
+
+```{r}
+gene_expression <- readRDS("~/GSEA_of_LINCS/fc.matrix.RDS.XZ")
+dim(gene_expression)
+```
+
+Loading metadata.
+
+Metadata of the individual comparisons. There are 6 columns, with two main prefixes: trt_ for treatment, and ctl_for control. The metadata is derived from this file (GSE92742_Broad_LINCS_inst_info.txt.gz). The meanings of the columns: a) trt_type: Treatment type. Covers the range of compounds (cp), ligands (lig), knockdowns (sh) etc. Details covered in a table near the ends of the document here
+(https://docs.google.com/document/d/1q2gciWRhVCAAnlvF2iRLuJ7whrGP6QjpsCMq1yWz7dU/edit#heading=h.l6bq0r1aih50)
+b) trt_full: Full description of the treatment in the format: "$DOSE
+$CHEMICAL for $TIME in $CELL"
+c) ctl_type: Control type. Similar to (a) above, but covers vehicle only
+(vehicle), empty vector (vector) and untreated (untrt).
+d) ctl_full: Control description. Similar to (b)
+e and f) trt_count and ctl_count: Number of samples for treatment and
+control respectively.
+```{r}
+lincs_metadata <- readRDS("~/GSEA_of_LINCS/final.assign.mapping.RDS.XZ")
+
+head(lincs_metadata)
+```
+
+Let's extract only those samples that come from MCF7 cell line:
+```{r}
+#pattern -> DOSAGE DRUG for TIME in CELL
+trt_columns <- str_split_fixed(lincs_metadata$trt_full, " ", 6)
+
+lincs_metadata <- lincs_metadata[,-2]
+
+lincs_metadata <- cbind(lincs_metadata, trt_columns[,c(1,2,4,6)])
+
+colnames(lincs_metadata) <- c("trt_type", "ctl_type", "ctl_full", "trt_count", "ctl_count",
+                                   "dosage", "drug", "time", "cell")
+
+#indexes (for expression columns)
+x <- which(lincs_metadata$trt_type == "trt_cp" & lincs_metadata$cell == "MCF7" & lincs_metadata$time == "24h")
+
+#we are interested only in compounds
+lincs_metadata_mcf7 <- lincs_metadata %>% filter(trt_type == "trt_cp")
+
+lincs_metadata_mcf7 <- lincs_metadata_mcf7 %>%
+  filter(cell == "MCF7") %>%
+  filter(time == "24h")
+
+#add column of index
+lincs_metadata_mcf7$Index <- x
+dim(lincs_metadata_mcf7)
+```
+
+There are this amount of unique compounds for this data set:
+```{r}
+length(unique(lincs_metadata_mcf7$drug))
+```
+
+We have to leave only one instance of each drug in this data set:
+```{r}
+#first let's split the dosage column (looks like it only has uM concentrations)
+test <- str_split_fixed(lincs_metadata_mcf7$dosage, "u", 2)
+colnames(test) <- c("DOSE", "MOLE")
+test <- as.data.frame(test)
+test$DOSE <- as.numeric(as.character(test$DOSE))
+
+lincs_metadata_mcf7 <- lincs_metadata_mcf7[,-6]
+
+lincs_metadata_mcf7$dosage <- test$DOSE
+
+repeated_drugs <- unique(lincs_metadata_mcf7$drug[which(duplicated(lincs_metadata_mcf7$drug))])
+
+#function for removing repeats in the data frame (and live max dosage)
+remove_repeats <- function(df, rep_drugs){
+  new_copy_of_df <- cbind(df) #we created a copy
+  
+  for (drugRep in repeated_drugs){
+    test <- lincs_metadata_mcf7 %>% filter(drug %in% drugRep)
+    delete_indeces <- test$Index[-which(test$dosage == max(test$dosage))]
+    new_copy_of_df <- new_copy_of_df %>%
+      filter(!Index %in% delete_indeces)
+  }
+  
+  return(new_copy_of_df)
+}
+
+lincs_metadata_mcf7 <- remove_repeats(lincs_metadata_mcf7, repeated_drugs)
+
+#number of rows has to be 10627
+dim(lincs_metadata_mcf7)
+```
+
+Analyze lincs expression data for only these selected drugs from MCF7
+```{r}
+gene_expression_mcf7 <- gene_expression[,lincs_metadata_mcf7$Index]
+
+save(gene_expression_mcf7, file="gene_expression_mcf7.Rdata")
+rm(gene_expression)
+```
+```{r}
+#if you run not the first time
+load("gene_expression_mcf7.Rdata")
+```
+
+
+We have entrez gene ids, we will convert them to gene symbols via this file:
+```{r}
+gene_info <- read.table("~/GSEA_of_LINCS/Gene_Info.txt", header=TRUE, sep="\t", quote = "")
+head(gene_info)
+```
+```{r}
+entrez_genes <- rownames(gene_expression_mcf7)
+
+#test2 - temporary df for conversion
+test2 <- data.frame(pr_gene_id = entrez_genes)
+test2 <- merge(test2, gene_info[,c(1,2)], sort=F)
+
+#conversion
+rownames(gene_expression_mcf7) <- test2$pr_gene_symbol
+colnames(gene_expression_mcf7) <- lincs_metadata_mcf7$drug
+```
+
+Function for running GSEA:
+```{r}
+pathwaysKEGG <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/KeggPathways.gmt")
+pathways_names <- names(pathwaysKEGG)
+
+#helping function for building final data frame
+is_significant <- function(pathway_name, df){
+  if (!pathway_name %in% df$pathway){
+    return(0)
+  } else if (df[pathway==pathway_name]$ES > 0 & df[pathway==pathway_name]$padj <= 0.05){
+    return(1)
+  } else {
+    return(0)
+  }
+}
+
+#we use sizes 15 and 300 and 10000 permutations
+#pathwaysKEGG and pathways_names must be specified in the environment!!!
+running_fgsea <- function(expression_vector){
+  fgseaRes <- fgsea(pathwaysKEGG, expression_vector, minSize=15, maxSize=300, nperm=10000)
+  
+  #we are interested in up-regulated pathways
+  #fgseaRes <- fgseaRes %>% 
+  #  arrange(padj) %>% 
+  #  filter(NES > 0) %>% 
+  #  filter(padj <= 0.05) %>% 
+  #  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+  
+  res <- sapply(pathways_names, is_significant, fgseaRes)
+  #return(fgseaRes)
+  return(res)
+}
+```
+
+```{r}
+#let's analyze first 1000 drugs and write them into file
+#it takes 30 minutes to run 1000 drugs
+start.time <- Sys.time()
+res1000 <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+res1000 <- t(res1000)
+end.time <- Sys.time()
+
+time.taken <- end.time - start.time
+time.taken
+
+#save(res1000, file = "res1000.Rdata")
+```
+
