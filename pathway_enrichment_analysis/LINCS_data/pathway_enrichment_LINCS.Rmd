@@ -195,91 +195,91 @@ running_fgsea <- function(expression_vector){
 ```{r}
 #let's analyze first 1000 drugs and write them into file
 #it takes 30 minutes to run 1000 drugs
-start.time <- Sys.time()
-res1000 <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
-res1000 <- t(res1000)
-end.time <- Sys.time()
+#start.time <- Sys.time()
+#res1000 <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+#res1000 <- t(res1000)
+#end.time <- Sys.time()
 
-time.taken <- end.time - start.time
-time.taken
+#time.taken <- end.time - start.time
+#time.taken
 
 #save(res1000, file = "res1000.Rdata")
 ```
 ```{r}
 #running analysis of all further drugs
 #not efficient but I don't care here about it so much
-res2000 <- apply(gene_expression_mcf7[,c(1001:2000)], 2, running_fgsea)
-res2000 <- t(res2000)
-save(res2000, file = "res2000.Rdata")
-print("done with 2000")
+#res2000 <- apply(gene_expression_mcf7[,c(1001:2000)], 2, running_fgsea)
+#res2000 <- t(res2000)
+#save(res2000, file = "res2000.Rdata")
+#print("done with 2000")
 
 ###################################################################
 
-res3000 <- apply(gene_expression_mcf7[,c(2001:3000)], 2, running_fgsea)
-res3000 <- t(res3000)
-save(res3000, file = "res3000.Rdata")
-print("done with 3000")
+#res3000 <- apply(gene_expression_mcf7[,c(2001:3000)], 2, running_fgsea)
+#res3000 <- t(res3000)
+#save(res3000, file = "res3000.Rdata")
+#print("done with 3000")
 
 ###################################################################
 
-res4000 <- apply(gene_expression_mcf7[,c(3001:4000)], 2, running_fgsea)
-res4000 <- t(res4000)
-save(res4000, file = "res4000.Rdata")
-print("done with 4000")
+#res4000 <- apply(gene_expression_mcf7[,c(3001:4000)], 2, running_fgsea)
+#res4000 <- t(res4000)
+#save(res4000, file = "res4000.Rdata")
+#print("done with 4000")
 
 ###################################################################
 
-res5000 <- apply(gene_expression_mcf7[,c(4001:5000)], 2, running_fgsea)
-res5000 <- t(res5000)
-save(res5000, file = "res5000.Rdata")
-print("done with 5000")
+#res5000 <- apply(gene_expression_mcf7[,c(4001:5000)], 2, running_fgsea)
+#res5000 <- t(res5000)
+#save(res5000, file = "res5000.Rdata")
+#print("done with 5000")
 
 ###################################################################
 
-res6000 <- apply(gene_expression_mcf7[,c(5001:6000)], 2, running_fgsea)
-res6000 <- t(res6000)
-save(res6000, file = "res6000.Rdata")
-print("done with 6000")
+#res6000 <- apply(gene_expression_mcf7[,c(5001:6000)], 2, running_fgsea)
+#res6000 <- t(res6000)
+#save(res6000, file = "res6000.Rdata")
+#print("done with 6000")
 
 ###################################################################
 
-res7000 <- apply(gene_expression_mcf7[,c(6001:7000)], 2, running_fgsea)
-res7000 <- t(res7000)
-save(res7000, file = "res7000.Rdata")
-print("done with 7000")
-rm(res7000)
+#res7000 <- apply(gene_expression_mcf7[,c(6001:7000)], 2, running_fgsea)
+#res7000 <- t(res7000)
+#save(res7000, file = "res7000.Rdata")
+#print("done with 7000")
+#rm(res7000)
 
 ###################################################################
 
-res8000 <- apply(gene_expression_mcf7[,c(7001:8000)], 2, running_fgsea)
-res8000 <- t(res8000)
-save(res8000, file = "res8000.Rdata")
-print("done with 8000")
-rm(res8000)
+#res8000 <- apply(gene_expression_mcf7[,c(7001:8000)], 2, running_fgsea)
+#res8000 <- t(res8000)
+#save(res8000, file = "res8000.Rdata")
+#print("done with 8000")
+#rm(res8000)
 
 ###################################################################
 
-res9000 <- apply(gene_expression_mcf7[,c(8001:9000)], 2, running_fgsea)
-res9000 <- t(res9000)
-save(res9000, file = "res9000.Rdata")
-print("done with 9000")
-rm(res9000)
+#res9000 <- apply(gene_expression_mcf7[,c(8001:9000)], 2, running_fgsea)
+#res9000 <- t(res9000)
+#save(res9000, file = "res9000.Rdata")
+#print("done with 9000")
+#rm(res9000)
 
 ###################################################################
 
-res10000 <- apply(gene_expression_mcf7[,c(9001:10000)], 2, running_fgsea)
-res10000 <- t(res10000)
-save(res10000, file = "res10000.Rdata")
-print("done with 10000")
-rm(res10000)
+#res10000 <- apply(gene_expression_mcf7[,c(9001:10000)], 2, running_fgsea)
+#res10000 <- t(res10000)
+#save(res10000, file = "res10000.Rdata")
+#print("done with 10000")
+#rm(res10000)
 
 ###################################################################
 
-res_final <- apply(gene_expression_mcf7[,c(10001:ncol(gene_expression_mcf7))], 2, running_fgsea)
-res_final <- t(res_final)
-save(res_final, file = "res_final.Rdata")
-print("done with res_final")
-rm(res_final)
+#res_final <- apply(gene_expression_mcf7[,c(10001:ncol(gene_expression_mcf7))], 2, running_fgsea)
+#res_final <- t(res_final)
+#save(res_final, file = "res_final.Rdata")
+#print("done with res_final")
+#rm(res_final)
 ```
 
 Keep analyzing the enriched pathways in LINCS for MCF7:
@@ -457,8 +457,21 @@ test %>%
   dplyr::select("pathway") %>% kable()
 ```
 
-## Analysis of Reactome pathways
+Let's construct the correlation matrix of different pathways using Phi coefficient (Pearson correlation for binary variables), so we can use cor() function, where Pearson goes by default:
+```{r}
+all_drugs <- all_drugs[,colSums(all_drugs) > 0]
+cormat <- round(cor(all_drugs),3)
 
+melted_cormat <- melt(cormat)
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()+
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+```
+Highest correlation of TGF_beta_pathway was with Taste transduction (0.25), which is not relevant at all. For Wnt_pathway (0.276) it was MAPK pathway.
+
+## Analysis of Reactome pathways
 
 Delete afterwards
 ```{r}
@@ -629,9 +642,9 @@ sum_across_all <- sum_across_all %>% filter(sum_across_all > 0)
 colnames(sum_across_all) <- c("Numbers", "Pathways")
 
 sum_across_all$Duble <- str_split_fixed(sum_across_all$Pathways, "%", 2)[,1]
-sum_across_all <- sum_across_all[,c(3,1)]
-sum_across_all <- sum_across_all[,-3]
-colnames(sum_across_all) <- c("Pathways", "Numbers")
+sum_across_all <- sum_across_all[,c(3,1,2)]
+#sum_across_all <- sum_across_all[,-3]
+colnames(sum_across_all) <- c("Pathways", "Numbers", "Old")
 
 sum_across_all <- sum_across_all[order(sum_across_all$Numbers, decreasing = TRUE),]
 
@@ -649,3 +662,114 @@ sum_across_all %>%
 ```
 
 Here among enriched terms we can see a lot of pathways associated with protein synthesis and translation (recall that for KEGG RIBOSOME was among the most enriched ones). Also, just like in KEGG analysis, Extracellular matrix organization (ECM organization is among the top pathways). 
+
+Most underrepresented pathways:
+```{r}
+sum_across_all %>%
+  tail(25) %>%
+  ggplot(aes(x = fct_reorder(Pathways, Numbers), 
+             y = Numbers)) +
+  geom_col(fill = "blue", colour = "black") +
+  labs(title = "Pathway numbers", 
+       x = "", y = "Number of drugs") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip() +
+  theme_light() +
+  theme(axis.text = element_text(size=5, face='bold'))
+```
+
+Noteworthy, there is one instance of drugs that activate pathways, which might be related to DE differentiation: TRANSCRIPTIONAL ACTIVITY OF SMAD2 SMAD3:SMAD4 HETEROTRIMER (narciclasine), DOWNSTREAM SIGNALING OF ACTIVATED FGFR4, SIGNALING BY FGFR (CHIR-99021
+), NUCLEAR SIGNALING BY ERBB4, BETA-CATENIN PHOSPHORYLATION CASCADE (RS-102221). 
+
+Narciclasine also enriched for RUNX1 REGULATES TRANSCRIPTION OF GENES INVOLVED IN DIFFERENTIATION OF HSCS, NEGATIVE REGULATION OF MAPK PATHWAY, DOWNREGULATION OF SMAD2 3:SMAD4 TRANSCRIPTIONAL ACTIVITY (!), ACTIVATION OF HOX GENES DURING DIFFERENTIATION, ACTIVATION OF ANTERIOR HOX GENES IN HINDBRAIN DEVELOPMENT, MAP KINASE ACTIVATION (!), also beta-catenin. Signaling by notch is probably more associated with mesoderm differentiation.  (in KEGG only MAPK)
+
+CHIR-99021 has SIGNALING BY NOTCH4, DEGRADATION OF BETA-CATENIN BY THE DESTRUCTION COMPLEX, NEGATIVE REGULATION OF NOTCH4 SIGNALING, TCF DEPENDENT SIGNALING IN RESPONSE TO WNT, ERK1 ERK2 PATHWAY, HEDGEHOG 'ON' STATE, EGFR DOWNREGULATION, HEDGEHOG 'OFF' STATE, SIGNALING BY FGFR, SIGNALING BY WNT. (in KEGG nothing)
+
+RS-102221 has nothing else really (the same in KEGG. 
+
+For now let's focus on those drugs that activate SIGNALING BY TGF-BETA RECEPTOR COMPLEX (NODAL signaling term is absent everywhere).
+
+Just for testing (delete after):
+```{r}
+drugs_Reactome <- rownames(all_drugs_Reactome)
+all_drugs_Reactome <- as.data.frame(all_drugs_Reactome)
+rownames(all_drugs_Reactome) <- drugs_Reactome
+
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(`SIGNALING BY TGF-BETA RECEPTOR COMPLEX%REACTOME DATABASE ID RELEASE 65%170834` == 1)
+
+test$drug 
+```
+
+```{r}
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(`TGF-BETA RECEPTOR SIGNALING ACTIVATES SMADS%REACTOME DATABASE ID RELEASE 65%2173789` == 1)
+
+test$drug 
+```
+```{r}
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(`TGF-BETA RECEPTOR SIGNALING IN EMT (EPITHELIAL TO MESENCHYMAL TRANSITION)%REACTOME%R-HSA-2173791.1` == 1)
+
+test$drug 
+```
+
+BRD-K69894866 drug is the most interesting so far (only ERBB in KEGG). 
+```{r}
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(`SIGNALING BY TGF-BETA FAMILY MEMBERS%REACTOME DATABASE ID RELEASE 65%9006936` == 1)
+
+test$drug 
+```
+```{r}
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(`SIGNALING BY BMP%REACTOME%R-HSA-201451.4` == 1)
+
+test$drug 
+```
+
+Up-regulated pathways in BRD-K69894866:
+```{r}
+
+x <- test %>% filter(drug=="BRD-K69894866") %>% t()
+colnames(x) <- "Upregulation"
+x %>% as.data.frame() %>% rownames_to_column("Pathways") %>% filter(Upregulation == 1) %>% kable()
+```
+
+Let's look at pathway enrichment of 3 the most interesting drugs, according to KEGG: ("carbetocin"  "linifanib"   "mestanolone"):
+```{r}
+#no TGF, BMP or Wnt related pathways
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "carbetocin") %>%
+  t()
+
+#has PRE-NOTCH EXPRESSION AND PROCESSING, 
+#TCF DEPENDENT SIGNALING IN RESPONSE TO WNT,
+#VEGFA-VEGFR2 PATHWAY
+#SIGNALING BY NOTCH
+#SIGNALING BY HEDGEHOG
+#SIGNALING BY WNT
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "linifanib") %>%
+  t()
+#NOTCH is controversial - "This suggests that culture conditions
+#of ESCs affect their responses to Notch inhibitors, and that blocking
+#this pathway can in certain circumstances induce a lineage that is
+#known to originate from the anterior PS/mesendoderm."
+#(https://www.ncbi.nlm.nih.gov/pubmed/23585347)
+
+#REGULATION OF BETA-CELL DEVELOPMENT
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "mestanolone") %>%
+  t()
+```
+
+
