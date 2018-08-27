@@ -456,3 +456,196 @@ test %>%
   filter(mestanolone == 1) %>%
   dplyr::select("pathway") %>% kable()
 ```
+
+## Analysis of Reactome pathways
+
+
+Delete afterwards
+```{r}
+pathwaysReactome <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Human_Reactome_August_01_2018_symbol.gmt")
+pathways_names <- names(pathwaysReactome)
+
+#we use sizes 15 and 300 and 10000 permutations
+#pathwaysKEGG and pathways_names must be specified in the environment!!!
+running_fgsea <- function(expression_vector){
+  fgseaRes <- fgsea(pathwaysReactome, expression_vector, minSize=15, maxSize=300, nperm=10000)
+  
+  res <- sapply(pathways_names, is_significant, fgseaRes)
+  #return(fgseaRes)
+  return(res)
+}
+
+```
+
+Running analysis with Reactome:
+```{r}
+#running analysis of all further drugs
+#not efficient but I don't care here about it so much
+res1000Reactome <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+res1000Reactome <- t(res1000Reactome)
+save(res1000Reactome, file = "res1000Reactome.Rdata")
+print("done with 1000")
+rm(res1000Reactome)
+
+###################################################################
+
+res2000Reactome <- apply(gene_expression_mcf7[,c(1001:2000)], 2, running_fgsea)
+res2000Reactome <- t(res2000Reactome)
+save(res2000Reactome, file = "res2000Reactome.Rdata")
+print("done with 2000")
+rm(res2000Reactome)
+
+###################################################################
+
+res3000Reactome <- apply(gene_expression_mcf7[,c(2001:3000)], 2, running_fgsea)
+res3000Reactome <- t(res3000Reactome)
+save(res3000Reactome, file = "res3000Reactome.Rdata")
+print("done with 3000")
+rm(res3000Reactome)
+
+###################################################################
+
+res4000Reactome <- apply(gene_expression_mcf7[,c(3001:4000)], 2, running_fgsea)
+res4000Reactome <- t(res4000Reactome)
+save(res4000Reactome, file = "res4000Reactome.Rdata")
+print("done with 4000")
+rm(res4000Reactome)
+
+###################################################################
+
+res5000Reactome <- apply(gene_expression_mcf7[,c(4001:5000)], 2, running_fgsea)
+res5000Reactome <- t(res5000Reactome)
+save(res5000Reactome, file = "res5000Reactome.Rdata")
+print("done with 5000")
+rm(res5000Reactome)
+
+###################################################################
+
+res6000Reactome <- apply(gene_expression_mcf7[,c(5001:6000)], 2, running_fgsea)
+res6000Reactome <- t(res6000Reactome)
+save(res6000Reactome, file = "res6000Reactome.Rdata")
+print("done with 6000")
+rm(res6000Reactome)
+
+###################################################################
+
+res7000Reactome <- apply(gene_expression_mcf7[,c(6001:7000)], 2, running_fgsea)
+res7000Reactome <- t(res7000Reactome)
+save(res7000Reactome, file = "res7000Reactome.Rdata")
+print("done with 7000")
+rm(res7000Reactome)
+
+###################################################################
+
+res8000Reactome <- apply(gene_expression_mcf7[,c(7001:8000)], 2, running_fgsea)
+res8000Reactome <- t(res8000Reactome)
+save(res8000Reactome, file = "res8000Reactome.Rdata")
+print("done with 8000")
+rm(res8000Reactome)
+
+###################################################################
+
+res9000Reactome <- apply(gene_expression_mcf7[,c(8001:9000)], 2, running_fgsea)
+res9000Reactome <- t(res9000Reactome)
+save(res9000Reactome, file = "res9000Reactome.Rdata")
+print("done with 9000")
+rm(res9000Reactome)
+
+###################################################################
+
+res10000Reactome <- apply(gene_expression_mcf7[,c(9001:10000)], 2, running_fgsea)
+res10000Reactome <- t(res10000Reactome)
+save(res10000Reactome, file = "res10000Reactome.Rdata")
+print("done with 10000")
+rm(res10000Reactome)
+
+###################################################################
+
+res_final_Reactome <- apply(gene_expression_mcf7[,c(10001:ncol(gene_expression_mcf7))], 2, running_fgsea)
+res_final_Reactome <- t(res_final_Reactome)
+save(res_final_Reactome, file = "res_final_Reactome.Rdata")
+print("done with res_final_Reactome")
+rm(res_final_Reactome)
+```
+
+Keep analyzing the enriched pathways in LINCS for MCF7 (REACTOME this time):
+```{r}
+#combine all results into single data frame
+load("res1000Reactome.Rdata")
+all_drugs_Reactome <- res1000Reactome
+rm(res1000Reactome)
+
+load("res2000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res2000Reactome)
+rm(res2000Reactome)
+
+load("res3000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res3000Reactome)
+rm(res3000Reactome)
+
+load("res4000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res4000Reactome)
+rm(res4000Reactome)
+
+load("res5000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res5000Reactome)
+rm(res5000Reactome)
+
+load("res6000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res6000Reactome)
+rm(res6000Reactome)
+
+load("res7000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res7000Reactome)
+rm(res7000Reactome)
+
+load("res8000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res8000Reactome)
+rm(res8000Reactome)
+
+load("res9000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res9000Reactome)
+rm(res9000Reactome)
+
+load("res10000Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res10000Reactome)
+rm(res10000Reactome)
+
+load("res_final_Reactome.Rdata")
+all_drugs_Reactome <- rbind(all_drugs_Reactome, res_final_Reactome)
+rm(res_final_Reactome)
+
+save(all_drugs_Reactome, file="all_drugs_Reactome_matrix.Rdata")
+```
+
+Analyzing results of pathway enrichment for all drugs (REACTOME):
+```{r}
+sum_across_all <- apply(all_drugs_Reactome, 2, sum)
+
+pathways <- names(sum_across_all)
+sum_across_all <- as.data.frame(sum_across_all)
+sum_across_all$Pathways <- pathways
+sum_across_all <- sum_across_all %>% filter(sum_across_all > 0)
+colnames(sum_across_all) <- c("Numbers", "Pathways")
+
+sum_across_all$Duble <- str_split_fixed(sum_across_all$Pathways, "%", 2)[,1]
+sum_across_all <- sum_across_all[,c(3,1)]
+sum_across_all <- sum_across_all[,-3]
+colnames(sum_across_all) <- c("Pathways", "Numbers")
+
+sum_across_all <- sum_across_all[order(sum_across_all$Numbers, decreasing = TRUE),]
+
+sum_across_all %>%
+  head(25) %>%
+  ggplot(aes(x = fct_reorder(Pathways, Numbers), 
+             y = Numbers)) +
+  geom_col(fill = "red", colour = "black") +
+  labs(title = "Pathway numbers", 
+       x = "", y = "Number of drugs") +
+  coord_flip() +
+  theme(axis.text = element_text(angle = 90, hjust = 1)) +
+  theme_light() + 
+  theme(axis.text = element_text(size=5, face='bold'))
+```
+
+Here among enriched terms we can see a lot of pathways associated with protein synthesis and translation (recall that for KEGG RIBOSOME was among the most enriched ones). Also, just like in KEGG analysis, Extracellular matrix organization (ECM organization is among the top pathways). 
