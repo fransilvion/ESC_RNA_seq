@@ -67,6 +67,23 @@ scoresFGSEADF <- DEgenes_0h_24h_75748 %>%
 scoresFGSEA <- scoresFGSEADF$logFC
 names(scoresFGSEA) <- rownames(scoresFGSEADF)
 
+#for WikiPathways
+eg <-  bitr(rownames(ermineInputGeneScores), fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+ermineInputGeneScoresWiki <- ermineInputGeneScores %>% rownames_to_column("SYMBOL") %>% 
+  filter(SYMBOL %in% eg$SYMBOL)
+ermineInputGeneScoresWiki <- merge(ermineInputGeneScoresWiki, eg, sort=FALSE)
+rownames(ermineInputGeneScoresWiki) <- ermineInputGeneScoresWiki$ENTREZID
+ermineInputGeneScoresWiki <- ermineInputGeneScoresWiki %>% dplyr::select("absolute_logFC")
+
+scoresFGSEADFWiki <- scoresFGSEADF %>% rownames_to_column("SYMBOL") %>% 
+  filter(SYMBOL %in% eg$SYMBOL)
+scoresFGSEADFWiki <- merge(scoresFGSEADFWiki, eg, sort=FALSE)
+rownames(scoresFGSEADFWiki) <- scoresFGSEADFWiki$ENTREZID
+scoresFGSEADFWiki <- scoresFGSEADFWiki %>% dplyr::select("logFC")
+
+scoresFGSEAWiki <- scoresFGSEADFWiki$logFC
+names(scoresFGSEAWiki) <- rownames(scoresFGSEADFWiki)
+
 ```
 
 ### Reactome
@@ -184,6 +201,64 @@ There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` d
 ```{r}
 upPathwaysKEGG %>% kable()
 ```
+
+### WikiPathways
+#### ErmineR Wiki pathways
+
+```{r}
+enrichmentResultWiki <- precRecall(scores = ermineInputGeneScoresWiki,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways_changed_column.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+```{r}
+enrichmentResultWiki$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 0.05) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineWiki <- enrichmentResultWiki$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineWiki)` enriched Wiki pathways with ermineR
+
+#### FGSEA Wiki pathways
+
+```{r}
+pathwaysWiki <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysWiki, scoresFGSEAWiki, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysWiki <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysWiki <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysWiki)` up-regulated and `r nrow(downPathwaysWiki)` down-regulated Wiki pathways with fgsea
+
+```{r}
+upPathwaysWiki %>% kable()
+```
+
 
 ## Analysis of second-fourth days of differentiation 24h VS 96h (formation of definitive endoderm from APS)
 
@@ -219,6 +294,23 @@ scoresFGSEADF <- DEgenes_24h_96h_75748 %>%
 scoresFGSEA <- scoresFGSEADF$logFC
 names(scoresFGSEA) <- rownames(scoresFGSEADF)
 
+#for WikiPathways
+eg <-  bitr(rownames(ermineInputGeneScores), fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+ermineInputGeneScoresWiki <- ermineInputGeneScores %>% rownames_to_column("SYMBOL") %>% 
+  filter(SYMBOL %in% eg$SYMBOL)
+ermineInputGeneScoresWiki <- merge(ermineInputGeneScoresWiki, eg, sort=FALSE)
+rownames(ermineInputGeneScoresWiki) <- ermineInputGeneScoresWiki$ENTREZID
+ermineInputGeneScoresWiki <- ermineInputGeneScoresWiki %>% dplyr::select("absolute_logFC")
+
+scoresFGSEADFWiki <- scoresFGSEADF %>% rownames_to_column("SYMBOL") %>% 
+  filter(SYMBOL %in% eg$SYMBOL)
+scoresFGSEADFWiki <- merge(scoresFGSEADFWiki, eg, sort=FALSE)
+rownames(scoresFGSEADFWiki) <- scoresFGSEADFWiki$ENTREZID
+scoresFGSEADFWiki <- scoresFGSEADFWiki %>% dplyr::select("logFC")
+
+scoresFGSEAWiki <- scoresFGSEADFWiki$logFC
+names(scoresFGSEAWiki) <- rownames(scoresFGSEADFWiki)
+
 ```
 
 ### Reactome
@@ -336,6 +428,65 @@ There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` d
 ```{r}
 upPathwaysKEGG %>% kable()
 ```
+
+### WikiPathways
+#### ErmineR Wiki pathways
+
+```{r}
+enrichmentResultWiki <- precRecall(scores = ermineInputGeneScoresWiki,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways_changed_column.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+```{r}
+enrichmentResultWiki$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 0.05) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineWiki <- enrichmentResultWiki$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineWiki)` enriched Wiki pathways with ermineR
+
+#### FGSEA Wiki pathways
+
+```{r}
+pathwaysWiki <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysWiki, scoresFGSEAWiki, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysWiki <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysWiki <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysWiki)` up-regulated and `r nrow(downPathwaysWiki)` down-regulated Wiki pathways with fgsea
+
+```{r}
+upPathwaysWiki %>% kable()
+```
+
+
 
 ## Analysis of whole differentiation process 0h VS 96 h (formation of Definitive endoderm from hESC)
 
@@ -371,6 +522,23 @@ scoresFGSEADF <- DEgenes_0h_96h_75748 %>%
 scoresFGSEA <- scoresFGSEADF$logFC
 names(scoresFGSEA) <- rownames(scoresFGSEADF)
 
+#for WikiPathways
+eg <-  bitr(rownames(ermineInputGeneScores), fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+ermineInputGeneScoresWiki <- ermineInputGeneScores %>% rownames_to_column("SYMBOL") %>% 
+  filter(SYMBOL %in% eg$SYMBOL)
+ermineInputGeneScoresWiki <- merge(ermineInputGeneScoresWiki, eg, sort=FALSE)
+rownames(ermineInputGeneScoresWiki) <- ermineInputGeneScoresWiki$ENTREZID
+ermineInputGeneScoresWiki <- ermineInputGeneScoresWiki %>% dplyr::select("absolute_logFC")
+
+scoresFGSEADFWiki <- scoresFGSEADF %>% rownames_to_column("SYMBOL") %>% 
+  filter(SYMBOL %in% eg$SYMBOL)
+scoresFGSEADFWiki <- merge(scoresFGSEADFWiki, eg, sort=FALSE)
+rownames(scoresFGSEADFWiki) <- scoresFGSEADFWiki$ENTREZID
+scoresFGSEADFWiki <- scoresFGSEADFWiki %>% dplyr::select("logFC")
+
+scoresFGSEAWiki <- scoresFGSEADFWiki$logFC
+names(scoresFGSEAWiki) <- rownames(scoresFGSEADFWiki)
+
 ```
 
 ### Reactome
@@ -488,3 +656,62 @@ There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` d
 ```{r}
 upPathwaysKEGG %>% kable()
 ```
+
+### WikiPathways
+#### ErmineR Wiki pathways
+
+```{r}
+enrichmentResultWiki <- precRecall(scores = ermineInputGeneScoresWiki,
+                               scoreColumn = 1,
+                               bigIsBetter = TRUE,
+                               aspects = "B",
+                               iterations = 10000,
+                               geneSetDescription = NULL,
+                               customGeneSets = "~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways_changed_column.gmt",
+                               minClassSize = 15,
+                               maxClassSize = 300)
+
+#enrichmentResultReactome$results %>% arrange(MFPvalue) %>% head(10) %>% kable()
+```
+```{r}
+enrichmentResultWiki$results %>% 
+  dplyr::select(Name, CorrectedPvalue, CorrectedMFPvalue) %>% 
+  arrange(CorrectedMFPvalue) %>% 
+  filter(CorrectedMFPvalue <= 0.05) %>% 
+  kable(align = "l", col.names = c("Pathway", "Corrected p-value", 
+                                   "Corrected MF p-value"))
+```
+```{r}
+#based on corrected MFPvalues 
+sizeErmineWiki <- enrichmentResultWiki$results %>% filter(CorrectedMFPvalue <= 0.05)
+```
+
+There are `r nrow(sizeErmineWiki)` enriched Wiki pathways with ermineR
+
+#### FGSEA Wiki pathways
+
+```{r}
+pathwaysWiki <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt")
+
+#ES – enrichment score, same as in Broad GSEA implementation;
+#NES – enrichment score normalized to mean enrichment of random samples of the same size;
+fgseaRes <- fgsea(pathwaysWiki, scoresFGSEAWiki, minSize=15, maxSize=300, nperm=10000)
+
+#up-regulated pathways
+upPathwaysWiki <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES > 0) %>% filter(padj <= 0.05) %>% 
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+
+#down-regulated pathways
+downPathwaysWiki <- fgseaRes %>% 
+  arrange(padj) %>% filter(NES < 0) %>% filter(padj <= 0.05) %>%
+  dplyr::select(c("pathway", "padj", "ES", "NES", "nMoreExtreme"))
+```
+
+There are `r nrow(upPathwaysWiki)` up-regulated and `r nrow(downPathwaysWiki)` down-regulated Wiki pathways with fgsea
+
+```{r}
+upPathwaysWiki %>% kable()
+```
+
+
