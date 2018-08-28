@@ -140,6 +140,10 @@ There are `r nrow(upPathwaysReactome)` up-regulated and `r nrow(downPathwaysReac
 ```{r}
 upPathwaysReactome %>% kable()
 ```
+```{r}
+upPathwaysReactome109658_024 <- upPathwaysReactome
+save(upPathwaysReactome109658_024, file="upPathwaysReactome109658_024.Rdata")
+```
 
 
 ### KEGG pathways
@@ -199,6 +203,10 @@ There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` d
 ```{r}
 upPathwaysKEGG %>% kable()
 ```
+```{r}
+upPathwaysKEGG109658_024 <- upPathwaysKEGG
+save(upPathwaysKEGG109658_024, file="upPathwaysKEGG109658_024.Rdata")
+```
 
 ### WikiPathways
 #### ErmineR Wiki pathways
@@ -255,6 +263,10 @@ There are `r nrow(upPathwaysWiki)` up-regulated and `r nrow(downPathwaysWiki)` d
 
 ```{r}
 upPathwaysWiki %>% kable()
+```
+```{r}
+upPathwaysWiki109658_024 <- upPathwaysWiki
+save(upPathwaysWiki109658_024, file="upPathwaysWiki109658_024.Rdata")
 ```
 
 ## Analysis of second-fourth days of differentiation 24h VS 96h (formation of definitive endoderm from APS)
@@ -365,7 +377,10 @@ There are `r nrow(upPathwaysReactome)` up-regulated and `r nrow(downPathwaysReac
 ```{r}
 upPathwaysReactome %>% kable()
 ```
-
+```{r}
+upPathwaysReactome109658_2496 <- upPathwaysReactome
+save(upPathwaysReactome109658_2496, file="upPathwaysReactome109658_2496.Rdata")
+```
 
 ### KEGG pathways
 #### ErmineR KEGG pathways
@@ -424,6 +439,10 @@ There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` d
 ```{r}
 upPathwaysKEGG %>% kable()
 ```
+```{r}
+upPathwaysKEGG109658_2496 <- upPathwaysKEGG
+save(upPathwaysKEGG109658_2496, file="upPathwaysKEGG109658_2496.Rdata")
+```
 
 ### WikiPathways
 #### ErmineR Wiki pathways
@@ -481,7 +500,10 @@ There are `r nrow(upPathwaysWiki)` up-regulated and `r nrow(downPathwaysWiki)` d
 ```{r}
 upPathwaysWiki %>% kable()
 ```
-
+```{r}
+upPathwaysWiki109658_2496 <- upPathwaysWiki
+save(upPathwaysWiki109658_2496, file="upPathwaysWiki109658_2496.Rdata")
+```
 
 ## Analysis of whole differentiation process 0h VS 96 h (formation of Definitive endoderm from hESC)
 
@@ -592,7 +614,10 @@ There are `r nrow(upPathwaysReactome)` up-regulated and `r nrow(downPathwaysReac
 ```{r}
 upPathwaysReactome %>% kable()
 ```
-
+```{r}
+upPathwaysReactome109658_096 <- upPathwaysReactome
+save(upPathwaysReactome109658_096, file="upPathwaysReactome109658_096.Rdata")
+```
 
 ### KEGG pathways
 #### ErmineR KEGG pathways
@@ -651,6 +676,10 @@ There are `r nrow(upPathwaysKEGG)` up-regulated and `r nrow(downPathwaysKEGG)` d
 ```{r}
 upPathwaysKEGG %>% kable()
 ```
+```{r}
+upPathwaysKEGG109658_096 <- upPathwaysKEGG
+save(upPathwaysKEGG109658_096, file="upPathwaysKEGG109658_096.Rdata")
+```
 
 ### WikiPathways
 #### ErmineR Wiki pathways
@@ -707,4 +736,8 @@ There are `r nrow(upPathwaysWiki)` up-regulated and `r nrow(downPathwaysWiki)` d
 
 ```{r}
 upPathwaysWiki %>% kable()
+```
+```{r}
+upPathwaysWiki109658_096 <- upPathwaysWiki
+save(upPathwaysWiki109658_096, file="upPathwaysWiki109658_096.Rdata")
 ```
