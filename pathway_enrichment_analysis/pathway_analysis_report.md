@@ -28,6 +28,247 @@ The GSEA of all three data sets can be found on this github pages:
 -   [GSE109658 pathway analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/pathway_enrichment_analysis/109658/pathway_enrichment_109658.md)
 -   [GSE98411 pathway analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/pathway_enrichment_analysis/98411/pathway_enrichment_98411.md)
 
+In GSEA analysis min and max cluster size were 15 and 300 respectively.
+
+Exploring pathway databases
+---------------------------
+
+Before we jump into GSEA analysis let's first describe a little bit different pathway databases (distribution, largest pathway and etc.)
+
+### KEGG
+
+We shall start with the most famous probably pathway database, which is not updated (free version) since 2011, KEGG.
+
+There are 186 pathways in total.
+
+Distribution of counts of genes in each pathway for KEGG: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-3-1.png)
+
+Here are the first 20 largest KEGG pathways:
+
+    ##                                           Pathway Size
+    ## 1                     KEGG_OLFACTORY_TRANSDUCTION  389
+    ## 2                         KEGG_PATHWAYS_IN_CANCER  328
+    ## 3    KEGG_NEUROACTIVE_LIGAND_RECEPTOR_INTERACTION  272
+    ## 4                     KEGG_MAPK_SIGNALING_PATHWAY  267
+    ## 5     KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION  267
+    ## 6           KEGG_REGULATION_OF_ACTIN_CYTOSKELETON  216
+    ## 7                             KEGG_FOCAL_ADHESION  201
+    ## 8                KEGG_CHEMOKINE_SIGNALING_PATHWAY  190
+    ## 9                        KEGG_HUNTINGTONS_DISEASE  185
+    ## 10                               KEGG_ENDOCYTOSIS  183
+    ## 11                 KEGG_CALCIUM_SIGNALING_PATHWAY  178
+    ## 12                        KEGG_ALZHEIMERS_DISEASE  169
+    ## 13                         KEGG_PURINE_METABOLISM  159
+    ## 14                KEGG_JAK_STAT_SIGNALING_PATHWAY  155
+    ## 15                     KEGG_WNT_SIGNALING_PATHWAY  151
+    ## 16              KEGG_SYSTEMIC_LUPUS_ERYTHEMATOSUS  140
+    ## 17            KEGG_UBIQUITIN_MEDIATED_PROTEOLYSIS  138
+    ## 18 KEGG_NATURAL_KILLER_CELL_MEDIATED_CYTOTOXICITY  137
+    ## 19                 KEGG_INSULIN_SIGNALING_PATHWAY  137
+    ## 20                 KEGG_OXIDATIVE_PHOSPHORYLATION  135
+
+We can see that the biggest pathway is OLFACTORY\_TRANSDUCTION. And it contains 389 genes, which is not so big. But what about the smallest ones? Here they are:
+
+    ##                                                 Pathway Size
+    ## 167                       KEGG_PHENYLALANINE_METABOLISM   18
+    ## 168                           KEGG_STEROID_BIOSYNTHESIS   17
+    ## 169                      KEGG_ONE_CARBON_POOL_BY_FOLATE   17
+    ## 170                       KEGG_RENIN_ANGIOTENSIN_SYSTEM   17
+    ## 171                 KEGG_PRIMARY_BILE_ACID_BIOSYNTHESIS   16
+    ## 172                       KEGG_OTHER_GLYCAN_DEGRADATION   16
+    ## 173        KEGG_GLYOXYLATE_AND_DICARBOXYLATE_METABOLISM   16
+    ## 174                          KEGG_RIBOFLAVIN_METABOLISM   16
+    ## 175              KEGG_PANTOTHENATE_AND_COA_BIOSYNTHESIS   16
+    ## 176 KEGG_GLYCOSAMINOGLYCAN_BIOSYNTHESIS_KERATAN_SULFATE   15
+    ## 177  KEGG_GLYCOSPHINGOLIPID_BIOSYNTHESIS_GANGLIO_SERIES   15
+    ## 178                KEGG_TERPENOID_BACKBONE_BIOSYNTHESIS   15
+    ## 179    KEGG_GLYCOSPHINGOLIPID_BIOSYNTHESIS_GLOBO_SERIES   14
+    ## 180                     KEGG_NON_HOMOLOGOUS_END_JOINING   14
+    ## 181                              KEGG_SULFUR_METABOLISM   13
+    ## 182                        KEGG_CIRCADIAN_RHYTHM_MAMMAL   13
+    ## 183     KEGG_VALINE_LEUCINE_AND_ISOLEUCINE_BIOSYNTHESIS   11
+    ## 184                            KEGG_FOLATE_BIOSYNTHESIS   11
+    ## 185             KEGG_TAURINE_AND_HYPOTAURINE_METABOLISM   10
+    ## 186                KEGG_LIMONENE_AND_PINENE_DEGRADATION   10
+
+Smallest pathways contain only 10 genes. Also notice how broad and vague these terms sound! Now let's switch to Reactome.
+
+### Reactome
+
+There are 2025 pathways in total.
+
+Distribution of counts of genes in each pathway for Reactome: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-7-1.png) Now we see that here the distribution is much more skewed than in KEGG.
+
+Now again let's try to look only at the largest pathways:
+
+    ##                                    Pathway Size
+    ## 1                       Signaling Pathways 2613
+    ## 2                   Metabolism of proteins 2104
+    ## 3                               Metabolism 2045
+    ## 4                            Immune System 1954
+    ## 5  Post-translational protein modification 1403
+    ## 6          Gene expression (Transcription) 1368
+    ## 7          RNA Polymerase II Transcription 1234
+    ## 8                        Signaling by GPCR 1151
+    ## 9            Generic Transcription Pathway 1113
+    ## 10              GPCR downstream signalling 1096
+    ## 11                   Developmental Biology 1042
+    ## 12                    Innate Immune System 1039
+    ## 13                                 Disease  823
+    ## 14                  Adaptive Immune System  731
+    ## 15                    Metabolism of lipids  721
+    ## 16            Transport of small molecules  708
+    ## 17     Cytokine Signaling in Immune system  680
+    ## 18                       Metabolism of RNA  659
+    ## 19              Vesicle-mediated transport  645
+    ## 20                              Cell Cycle  614
+
+These terms are also very broad, and they are probably stay at the beginning of the pathway hierarchy (in this sense Reactome is similar to GO terms).
+
+However, the smallest pathways contain just one gene and they are too specific:
+
+    ##                                                                               Pathway
+    ## 1991                                                 FGFR4 mutant receptor activation
+    ## 1992                                                         UNC93B1 deficiency - HSE
+    ## 1993                                  FGFR1c and Klotho ligand binding and activation
+    ## 1994                                                              Regulation by TREX1
+    ## 1995                                                                Inhibition of PKR
+    ## 1996                                         Signaling by FGFR2 amplification mutants
+    ## 1997                             APC truncation mutants are not K63 polyubiquitinated
+    ## 1998                                               Retinoid metabolism disease events
+    ## 1999                                        Metabolism of ingested MeSeO2H into MeSeH
+    ## 2000                               Biosynthesis of DPAn-3-derived 13-series resolvins
+    ## 2001 Microtubule-dependent trafficking of connexons from Golgi to the plasma membrane
+    ## 2002                            Defective TCN2 causes hereditary megaloblastic anemia
+    ## 2003                                                 Toxicity of tetanus toxin (TeNT)
+    ## 2004      Defective MMACHC causes methylmalonic aciduria and homocystinuria type cblC
+    ## 2005                      Abnormal conversion of 2-oxoglutarate to 2-hydroxyglutarate
+    ## 2006                  WNT ligand secretion is abrogated by the PORCN inhibitor LGK974
+    ## 2007                      Reactions specific to the hybrid N-glycan synthesis pathway
+    ## 2008                                                                  Synthesis of CL
+    ## 2009                                                                           GSD II
+    ## 2010                                                                        Vitamin E
+    ##      Size
+    ## 1991    1
+    ## 1992    1
+    ## 1993    1
+    ## 1994    1
+    ## 1995    1
+    ## 1996    1
+    ## 1997    1
+    ## 1998    1
+    ## 1999    1
+    ## 2000    1
+    ## 2001    1
+    ## 2002    1
+    ## 2003    1
+    ## 2004    1
+    ## 2005    1
+    ## 2006    1
+    ## 2007    1
+    ## 2008    1
+    ## 2009    1
+    ## 2010    1
+
+Turns out that 15 pathways in new annotation have size 0. Now let's look at Wiki pathways.
+
+### Analysis of Wikipathways
+
+There are 462 pathways in total.
+
+Distribution of counts of genes in each pathway for Wikipathways: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-11-1.png) Distribution looks similar to KEGG's. Let's check the largest and smallest pathways!
+
+The largest pathways:
+
+``` r
+wiki_pathways_amount <- as.data.frame(wiki_pathways[,2])
+colnames(wiki_pathways_amount) <- "Pathway"
+wiki_pathways_amount$Size <- wiki_sizes_of_pathways
+
+wiki_pathways_amount <- wiki_pathways_amount %>%
+  arrange(desc(Size))
+
+wiki_pathways_amount$Pathway <- str_split_fixed(wiki_pathways_amount$Pathway, "%",3)[,1]
+head(wiki_pathways_amount, n = 20) #%>% kable()
+```
+
+    ##                                                        Pathway Size
+    ## 1                                   PI3K-Akt Signaling Pathway  345
+    ## 2                               Nuclear Receptors Meta-Pathway  321
+    ## 3               Focal Adhesion-PI3K-Akt-mTOR-signaling pathway  309
+    ## 4                                GPCRs, Class A Rhodopsin-like  258
+    ## 5                                       MAPK Signaling Pathway  249
+    ## 6                               VEGFA-VEGFR2 Signaling Pathway  238
+    ## 7                                Circadian rythm related genes  207
+    ## 8                                               Focal Adhesion  202
+    ## 9                                   Vitamin D Receptor Pathway  186
+    ## 10                                               Ras Signaling  186
+    ## 11                Metapathway biotransformation Phase I and II  180
+    ## 12                                 Chemokine signaling pathway  165
+    ## 13                                  EGF/EGFR Signaling Pathway  164
+    ## 14 Sudden Infant Death Syndrome (SIDS) Susceptibility Pathways  164
+    ## 15   Epithelial to mesenchymal transition in colorectal cancer  164
+    ## 16                                           Insulin Signaling  161
+    ## 17              Myometrial Relaxation and Contraction Pathways  158
+    ## 18                               Mesodermal Commitment Pathway  157
+    ## 19                                       Breast cancer pathway  157
+    ## 20                            Integrated Breast Cancer Pathway  154
+
+These pathways are similar in size with KEGG terms. What about the smallest ones?
+
+Some pathways from Wiki contain just one gene.
+
+``` r
+tail(wiki_pathways_amount, n = 20) #%>% kable()
+```
+
+    ##                                                                                     Pathway
+    ## 443                                                              Neurotransmitter Disorders
+    ## 444 Proprotein convertase subtilisin/kexin type 9 (PCSK9) mediated LDL receptor degradation
+    ## 445                                                                       Heroin metabolism
+    ## 446                                                  mir34a and TGIF2 in osteoclastogenesis
+    ## 447                                                                    Evolocumab Mechanism
+    ## 448                                                              Lamin A-processing pathway
+    ## 449                                                          Aripiprazole Metabolic Pathway
+    ## 450                                                                    Felbamate Metabolism
+    ## 451                                                    Butyrate-induced histone acetylation
+    ## 452                                                       Hypoxia-mediated EMT and Stemness
+    ## 453                                                             Influenza A virus infection
+    ## 454                                                                    Lidocaine metabolism
+    ## 455                                                Metabolism of Tetrahydrocannabinol (THC)
+    ## 456                      Mevalonate arm of cholesterol biosynthesis pathway with inhibitors
+    ## 457                                               Hormonal control of Pubertal Growth Spurt
+    ## 458                                                Metabolism of Dichloroethylene by CYP450
+    ## 459                                                            Gut-Liver Indole Metabolism 
+    ## 460                                                            Colchicine Metabolic Pathway
+    ## 461                                                                     Glucose Homeostasis
+    ## 462                                    Acrylamide Biotransformation and Exposure Biomarkers
+    ##     Size
+    ## 443    4
+    ## 444    3
+    ## 445    3
+    ## 446    3
+    ## 447    3
+    ## 448    3
+    ## 449    2
+    ## 450    2
+    ## 451    2
+    ## 452    2
+    ## 453    2
+    ## 454    2
+    ## 455    2
+    ## 456    2
+    ## 457    2
+    ## 458    1
+    ## 459    1
+    ## 460    1
+    ## 461    1
+    ## 462    1
+
+These pathways are not so broad as KEGG pathways and not too specific as in Reactome (also looks like they lack hierarchical structure).
+
+Now let's switch to actual analysis.
+
 0h-24h Time period
 ------------------
 
@@ -96,7 +337,7 @@ There are 5 enriched KEGG pathways at this time point for GSE98411. Here they ar
 
 #### Analyzing overlap between different pathway databases
 
-![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-8-1.png)
+![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-20-1.png)
 
 So we see that all KEGG pathways in GSE98411 are included in GSE109658, which also are all included in GSE75748. The last data set has 30 other pathways that did not show up in other two data sets; majority of them are cancer pathways (e.g. KEGG\_RENAL\_CELL\_CARCINOMA, KEGG\_BASAL\_CELL\_CARCINOMA, KEGG\_SMALL\_CELL\_LUNG\_CANCER).
 
@@ -231,7 +472,7 @@ There are 0 enriched Reactome pathways at this time point for GSE98411. Nothing.
 
 #### Analyzing overlap between different pathway databases
 
-We compare only GSE75748 and GSE109658 since there is no enrichment for GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-16-1.png)
+We compare only GSE75748 and GSE109658 since there is no enrichment for GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-28-1.png)
 
 For Reactome there are only 4 common pathways between two sets. Plus (just like for KEGG) GSE75748 has huge amount of enriched terms
 
@@ -401,7 +642,7 @@ There are 12 enriched Wiki pathways at this time point for GSE98411.
 
 #### Analyzing overlap between different pathway databases
 
-We compare only GSE75748, GSE109658 and GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-25-1.png)
+We compare only GSE75748, GSE109658 and GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-37-1.png)
 
 For Wiki pathways we see that enriched pathways of GSE109658 are completely included in GSE75748. Total intersection between all three data sets is 10 terms.
 
@@ -476,7 +717,7 @@ There are 10 enriched KEGG pathways at this time point for GSE98411. Here they a
 
 #### Analyzing overlap between different pathway databases
 
-![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-34-1.png)
+![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-46-1.png)
 
 Now we have approximately the same number of pathways. But there are only two of them, which are common.
 
@@ -604,7 +845,7 @@ There are 41 enriched Reactome pathways at this time point for GSE98411.
 
 #### Analyzing overlap between different pathway databases
 
-![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-43-1.png)
+![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-55-1.png)
 
 For Reactome there are only 12 common pathways between three sets. This time again the overall numbers are comparable.
 
@@ -683,7 +924,7 @@ There are 21 enriched Wiki pathways at this time point for GSE98411.
 
 #### Analyzing overlap between different pathway databases
 
-We compare only GSE75748, GSE109658 and GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-52-1.png)
+We compare only GSE75748, GSE109658 and GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-64-1.png)
 
 Again we have not very informative Vienn diagram.
 
