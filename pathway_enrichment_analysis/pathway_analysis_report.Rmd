@@ -1,0 +1,465 @@
+---
+title: "Pathway analysis, report"
+author: "German Novakovskiy"
+date: "August 28, 2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(ReactomePA)))
+suppressMessages(suppressWarnings(library(clusterProfiler)))
+suppressMessages(suppressWarnings(library(fgsea)))
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(rlist)))
+```
+
+# Pathway enrichment analysis of public data on Definitive Endoderm (DE) differentiation
+
+In this section we do GSEA of three RNA-seq public datasets from GEO database and following papers:
+
+* [Single-cell RNA-seq reveals novel regulators of human embryonic stem cell differentiation to definitive endoderm](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1033-x); GSE75748; [Github page with analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/analysis_of_public_data/GSE75748/GSE75748_data_analysis.md)
+* [Single-cell RNA sequencing reveals metallothionein heterogeneity during hESC differentiation to definitive endoderm](https://www.ncbi.nlm.nih.gov/pubmed/29427839); GSE109658; [Github page with analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/analysis_of_public_data/GSE109658/GSE109658_data_analysis.md)
+* [A Comparative Study Of Endoderm Differentiation In Humans And Chimpanzees](https://www.biorxiv.org/content/early/2017/05/09/135442); GSE98411; [Github page with analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/analysis_of_public_data/GSE98411/GSE98411_data_analysis.md)
+
+For every data set bulk RNA-seq was analyzed using [limma-voom package](https://bioconductor.org/packages/release/bioc/html/limma.html). GSEA was performed using [fgsea package](https://bioconductor.org/packages/release/bioc/html/fgsea.html). 
+
+Every GSE data set has a time series data. So enrichemnt analysis was done for three time periods: 0h-24h (formation of anterior primitive streak), 24h-96h (formation of DE; 72h for GSE98411), 0h-96h (whole differentiation process; 72h for GSE98411). Here we gonna analyze only first two, for the third one please check the github pages below. 
+
+Three pathway databases were used for GSEA: KEGG (186 pathways, last update of the free version was in 2011, so it's not complete), Reactome (2025 pathways, has a hierarchical structure, similar to GO), WikiPathways (462 pathways, database was chosen only because it contains Endoderm differentiation term). Gmt files for fgsea were downloaded from these links:
+
+* [KEGG gene sets](http://software.broadinstitute.org/gsea/msigdb/collections.jsp#C2)
+* [Reactome gene sets](http://download.baderlab.org/EM_Genesets/August_01_2018/Human/symbol/Pathways/Human_Reactome_August_01_2018_symbol.gmt)
+* [WikiPathways](http://data.wikipathways.org/20180810/gmt/wikipathways-20180810-gmt-Homo_sapiens.gmt)
+
+The GSEA of all three data sets can be found on this github pages:
+
+* [GSE75748 pathway analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/pathway_enrichment_analysis/75748/pathway_enrichment_75748.md)
+* [GSE109658 pathway analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/pathway_enrichment_analysis/109658/pathway_enrichment_109658.md)
+* [GSE98411 pathway analysis](https://github.com/fransilvion/ESC_RNA_seq/blob/master/pathway_enrichment_analysis/98411/pathway_enrichment_98411.md)
+
+## 0h-24h Time period
+
+### KEGG
+
+Let's compare KEGG pathway enrichment data for different data sets at this time point
+
+#### GSE75748
+
+```{r, echo=FALSE}
+load("75748/upPathwaysKEGG75748_024.Rdata")
+```
+
+There are `r nrow(upPathwaysKEGG75748_024)` enriched KEGG pathways at this time point for GSE75748. Here they are:
+```{r, echo=FALSE}
+upPathwaysKEGG75748_024$pathway
+```
+
+#### GSE109658
+
+```{r, echo=FALSE}
+load("109658/upPathwaysKEGG109658_024.Rdata")
+```
+
+There are `r nrow(upPathwaysKEGG109658_024)` enriched KEGG pathways at this time point for GSE109658. Here they are:
+```{r, echo=FALSE}
+upPathwaysKEGG109658_024$pathway
+```
+
+#### GSE98411
+
+```{r, echo=FALSE}
+load("98411/upPathwaysKEGG98411_024.Rdata")
+```
+
+There are `r nrow(upPathwaysKEGG98411_024)` enriched KEGG pathways at this time point for GSE98411. Here they are:
+```{r, echo=FALSE}
+upPathwaysKEGG98411_024$pathway
+```
+
+#### Analyzing overlap between different pathway databases
+
+```{r, echo=FALSE}
+grid.newpage()
+temp <- venn.diagram(list(GSE75748 = upPathwaysKEGG75748_024$pathway, GSE109658 = upPathwaysKEGG109658_024$pathway, 
+                  GSE98411 = upPathwaysKEGG98411_024$pathway), fill = c("skyblue", "pink1", "cyan"), 
+                  alpha = c(0.5, 0.5, 0.5), 
+                  cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, 
+                  main = "Anterior primitive streak differentiation (KEGG)", 
+                  category.names = c("GSE75748", "GSE109658", "GSE98411"))
+grid.draw(temp)
+```
+
+So we see that all KEGG pathways in GSE98411 are included in GSE109658, which also are all included in GSE75748. The last data set has 30 other pathways that did not show up in other two data sets; majority of them are cancer pathways (e.g. KEGG_RENAL_CELL_CARCINOMA, KEGG_BASAL_CELL_CARCINOMA, KEGG_SMALL_CELL_LUNG_CANCER).
+
+Here are the common pathways of all data sets:
+```{r, echo=FALSE}
+intersect(intersect(upPathwaysKEGG98411_024$pathway, upPathwaysKEGG109658_024$pathway), 
+          upPathwaysKEGG75748_024$pathway)
+```
+```{r, echo=FALSE}
+rm(upPathwaysKEGG109658_024, upPathwaysKEGG75748_024, upPathwaysKEGG98411_024)
+```
+
+So we see that according to KEGG there are 5 common pathways at 0-24h time point of differentiation. Wnt signaling pathway and TGF-beta pathway are [know regulators of DE differentiation](https://www.ncbi.nlm.nih.gov/pubmed/23585347). With Hedgehog is not so clear, but it was shown to be beneficial for [pancreas differentiation in non-human species](https://www.sciencedirect.com/science/article/pii/S096098220100402X). Presence of Pathways in cancer term is probably due to relative similarity of processes that are happening in stem cell growth and differentiation and cancer. But still Pathways in cancer and Basal cell carcinoma look too broad to be considered as something specific for DE differentiation. 
+
+Overal, it can be concluded that according to KEGG the most important pathways at the beginnig of differentiation are TFG-beta and Wnt signaling pathways (which is consistent with the literature). 
+
+### Reactome
+
+Let's compare Reactome pathway enrichment data for different data sets at this time point (0 hours - 24 hours)
+
+#### GSE75748
+
+```{r, echo=FALSE}
+load("75748/upPathwaysReactome75748_024.Rdata")
+```
+
+There are `r nrow(upPathwaysReactome75748_024)` enriched Reactome pathways at this time point for GSE75748. Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysReactome75748_024$pathway,"%", 3)[,1]
+```
+
+Just check how many pathways here are broad or not related to DE differentiation. 
+
+#### GSE109658
+
+```{r, echo=FALSE}
+load("109658/upPathwaysReactome109658_024.Rdata")
+```
+
+There are `r nrow(upPathwaysReactome109658_024)` enriched Reactome pathways at this time point for GSE109658. Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysReactome109658_024$pathway, "%", 3)[,1]
+```
+
+#### GSE98411
+
+```{r, echo=FALSE}
+load("98411/upPathwaysReactome98411_024.Rdata")
+```
+
+There are `r nrow(upPathwaysReactome98411_024)` enriched Reactome pathways at this time point for GSE98411. Nothing.
+
+#### Analyzing overlap between different pathway databases
+
+We compare only GSE75748 and GSE109658 since there is no enrichment for GSE98411:
+```{r, echo=FALSE}
+grid.newpage()
+temp <- venn.diagram(list(GSE75748 = upPathwaysReactome75748_024$pathway, GSE109658 = upPathwaysReactome109658_024$pathway), 
+                     fill = c("skyblue", "pink1"), alpha = c(0.5, 0.5), cex = 2, cat.fontface = 4, 
+                     lty =2, fontfamily =3, filename = NULL, 
+                     main = "Anterior primitive streak differentiation (Reactome)", 
+                     category.names = c("GSE75748", "GSE109658"))
+grid.draw(temp)
+```
+
+For Reactome there are only 4 common pathways between two sets. Plus (just like for KEGG) GSE75748 has huge amount of enriched terms
+
+The common pathways of two data sets:
+```{r, echo=FALSE}
+str_split_fixed(intersect(upPathwaysReactome75748_024$pathway, upPathwaysReactome109658_024$pathway), "%", 3)[,1]
+```
+```{r, echo=FALSE}
+rm(upPathwaysReactome109658_024, upPathwaysReactome75748_024, upPathwaysReactome98411_024)
+```
+
+For Reactome we don't see consistency. GSE98411 didn't show any enrichment at all, however GSE75748 showed 87 enriched terms, and only 4 of them are common with GSE109658. But even these pathways are not specific at all. Collagen chain trimerization, extracellular matrix organization and elastic fibre formation might be relevant for every cell that is cultivated and treated with some component. Thus, only Wnt ligand biogenesis and trafficking looks appropriate and conistent with the literature. 
+
+### Wiki
+
+Let's compare Wiki pathway enrichment data for different data sets at this time point (0 hours - 24 hours)
+
+#### GSE75748
+
+```{r, echo=FALSE}
+load("75748/upPathwaysWiki75748_024.Rdata")
+```
+
+There are `r nrow(upPathwaysWiki75748_024)` enriched Wiki pathways at this time point for GSE75748 (again so a lot of them!). Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysWiki75748_024$pathway, "%", 3)[,1]
+```
+
+#### GSE109658
+
+```{r, echo=FALSE}
+load("109658/upPathwaysWiki109658_024.Rdata")
+```
+
+There are `r nrow(upPathwaysWiki109658_024)` enriched Wiki pathways at this time point for GSE109658. Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysWiki109658_024$pathway,"%", 3)[,1]
+```
+
+#### GSE98411
+
+```{r, echo=FALSE}
+load("98411/upPathwaysWiki98411_024.Rdata")
+```
+
+There are `r nrow(upPathwaysWiki98411_024)` enriched Wiki pathways at this time point for GSE98411.
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysWiki98411_024$pathway, "%", 3)[,1]
+```
+
+#### Analyzing overlap between different pathway databases
+
+We compare only GSE75748, GSE109658 and GSE98411:
+```{r, echo=FALSE}
+grid.newpage()
+temp <- venn.diagram(list(GSE75748 = upPathwaysWiki75748_024$pathway, GSE109658 = upPathwaysWiki109658_024$pathway, 
+                  GSE98411 = upPathwaysWiki98411_024$pathway), fill = c("skyblue", "pink1", "cyan"), 
+                  alpha = c(0.5, 0.5, 0.5), 
+                  cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, 
+                  main = "Anterior primitive streak differentiation (Wiki)", 
+                  category.names = c("GSE75748", "GSE109658", "GSE98411"))
+grid.draw(temp)
+```
+
+For Wiki pathways we see that enriched pathways of GSE109658 are completely included in GSE75748. Total intersection between all three data sets is 10 terms.
+
+The common pathways of three data sets:
+```{r, echo=FALSE}
+str_split_fixed(intersect(intersect(upPathwaysWiki75748_024$pathway, upPathwaysWiki109658_024$pathway),
+          upPathwaysWiki98411_024$pathway), "%", 3)[,1]
+```
+```{r, echo=FALSE}
+rm(upPathwaysWiki109658_024, upPathwaysWiki75748_024, upPathwaysWiki98411_024)
+```
+
+Results for Wiki pathways are much more interesting than for Reactome. It has Endoderm Differentiation term, which is very helpful in this analysis. Also we see mesodermal commitment pathway, which is consistent with findings from [papers](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1033-x) that definitive endoderm and mesoderm have some common markers and share some pathways. The same for heart development and cardiac progenitor differentiation terms, since heart comes from mesoderm. And since it's a primitive streak differentiation step, which is common for both definitive endoderm and mesoderm, it's no surprise here that we see presence of mesoderm related terms. Moreover, there is a differentiation pathway term, which points to differentiation process here. And there are Wnt signaling pathway related terms as well.
+
+Overall, terms that might be specific only for DE differentiation (or related to it) are Endoderm differentiation, Wnt signaling pathway, LncRNA involvement in canonical Wnt signaling and colorectal cancer and Differentiation pathway.
+
+#### Conclusion for 0h-24h time point
+
+After running GSEA with three key pathway databases (KEGG, Wiki and Reactome) it's clear that only KEGG and Wiki give biologically meaningful results: presence of TGF-beta (KEGG), Wnt (KEGG and Wiki) and endoderm differentiation pathways (Wiki). Noteworthy, BMP and FGF pathways, which were shown to be beneficial for first stage of DE differentiation, are included in TGF-beta pathway of KEGG.
+
+## 24h-96(72)h Time period
+
+Now let's check the second time point in this differentiation process -> differentiation of DE from anterior primitive streak. 
+
+### KEGG
+
+Let's compare KEGG pathway enrichment data for different data sets at this time point.
+
+#### GSE75748
+
+```{r, echo=FALSE}
+load("75748/upPathwaysKEGG75748_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysKEGG75748_2496)` enriched KEGG pathways at this time point for GSE75748. Here they are:
+```{r, echo=FALSE}
+upPathwaysKEGG75748_2496$pathway
+```
+Nothing really related to DE differentiation, except maybe HEMATOPOIETIC_CELL_LINEAGE, which is mesoderm related.
+
+#### GSE109658
+
+```{r, echo=FALSE}
+load("109658/upPathwaysKEGG109658_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysKEGG109658_2496)` enriched KEGG pathways at this time point for GSE109658. Here they are:
+```{r, echo=FALSE}
+upPathwaysKEGG109658_2496$pathway
+```
+Again nothing really related to DE differentiation. 
+
+#### GSE98411
+
+```{r, echo=FALSE}
+load("98411/upPathwaysKEGG98411_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysKEGG98411_2496)` enriched KEGG pathways at this time point for GSE98411. Here they are:
+```{r, echo=FALSE}
+upPathwaysKEGG98411_2496$pathway
+```
+
+#### Analyzing overlap between different pathway databases
+
+```{r, echo=FALSE}
+grid.newpage()
+temp <- venn.diagram(list(GSE75748 = upPathwaysKEGG75748_2496$pathway, GSE109658 = upPathwaysKEGG109658_2496$pathway, 
+                  GSE98411 = upPathwaysKEGG98411_2496$pathway), fill = c("skyblue", "pink1", "cyan"), 
+                  alpha = c(0.5, 0.5, 0.5), 
+                  cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, 
+                  main = "DE differentiation (KEGG)", 
+                  category.names = c("GSE75748", "GSE109658", "GSE98411"))
+grid.draw(temp)
+```
+
+Now we have approximately the same number of pathways. But there are only two of them, which are common. 
+
+Here are the common pathways of all data sets:
+```{r, echo=FALSE}
+intersect(intersect(upPathwaysKEGG98411_2496$pathway, upPathwaysKEGG109658_2496$pathway), 
+          upPathwaysKEGG75748_2496$pathway)
+```
+```{r, echo=FALSE}
+rm(upPathwaysKEGG109658_2496, upPathwaysKEGG75748_2496, upPathwaysKEGG98411_2496)
+```
+
+Those are not specific at all, which basically says that KEGG is not good for consistent enrichment analysis of pathways occuring at later stage of DE differentiation (or maybe data sets are not that good as well).
+
+### Reactome
+
+Let's compare Reactome pathway enrichment data for different data sets at this time point (24 hours - 96 hours)
+
+#### GSE75748
+
+```{r, echo=FALSE}
+load("75748/upPathwaysReactome75748_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysReactome75748_2496)` enriched Reactome pathways at this time point for GSE75748. Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysReactome75748_2496$pathway,"%", 3)[,1]
+```
+
+A lot of pathways that are associated with ECM organization and collagen formation. 
+
+#### GSE109658
+
+```{r, echo=FALSE}
+load("109658/upPathwaysReactome109658_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysReactome109658_2496)` enriched Reactome pathways at this time point for GSE109658. Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysReactome109658_2496$pathway, "%", 3)[,1]
+```
+Again we have a lot of collagen and ECM related pathways. Also, notice that there is a signaling by BMP. According to [published data] BMP is inhibited at later stages of DE differentiation. Here comes the question, how should we interpret the result of GSEA enrichment: if we see enrichment at the top for one of the pathways, does it mean that it's activated? Probably it depends on annotation, here it's Reactome, and probably signaling by BMP has no direction.  
+
+#### GSE98411
+
+```{r, echo=FALSE}
+load("98411/upPathwaysReactome98411_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysReactome98411_2496)` enriched Reactome pathways at this time point for GSE98411. 
+
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysReactome98411_2496$pathway, "%", 3)[,1]
+```
+
+#### Analyzing overlap between different pathway databases
+
+```{r, echo=FALSE}
+grid.newpage()
+temp <- venn.diagram(list(GSE75748 = upPathwaysReactome75748_2496$pathway, GSE109658 = upPathwaysReactome109658_2496$pathway,
+                          GSE98411 = upPathwaysReactome98411_2496$pathway), 
+                     fill = c("skyblue", "pink1", "cyan"), alpha = c(0.5, 0.5, 0.5), cex = 2, cat.fontface = 4, 
+                     lty =2, fontfamily =3, filename = NULL, 
+                     main = "DE differentiation (Reactome)", 
+                     category.names = c("GSE75748", "GSE109658", "GSE98411"))
+grid.draw(temp)
+```
+
+For Reactome there are only 12 common pathways between three sets. This time again the overall numbers are comparable.
+
+The common pathways of two data sets:
+```{r, echo=FALSE}
+str_split_fixed(intersect(intersect(upPathwaysReactome75748_2496$pathway, upPathwaysReactome109658_2496$pathway),
+          upPathwaysReactome98411_2496$pathway), "%", 3)[,1]
+```
+```{r, echo=FALSE}
+rm(upPathwaysReactome109658_2496, upPathwaysReactome75748_2496, upPathwaysReactome98411_2496)
+```
+
+So among common pathways we see presence of mostly not related to DE differentiation processes, such as collagen formation and ECM organization. Also, there is presence of Regulation of IGF activity by IGFBP term, which is also controversial to some [papers](https://www.ncbi.nlm.nih.gov/pubmed/17204604) that state that reduced level of IGF is critical for stem cell commitment into DE.
+
+### Wiki
+
+Let's compare Wiki pathway enrichment data for different data sets at this time point (24 hours - 96 hours)
+
+#### GSE75748
+
+```{r, echo=FALSE}
+load("75748/upPathwaysWiki75748_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysWiki75748_2496)` enriched Wiki pathways at this time point for GSE75748. Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysWiki75748_2496$pathway, "%", 3)[,1]
+```
+Surprisingly, but again we see mesoderm related terms. And even ectoderm differentiation. 
+
+#### GSE109658
+
+```{r, echo=FALSE}
+load("109658/upPathwaysWiki109658_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysWiki109658_2496)` enriched Wiki pathways at this time point for GSE109658. Here they are:
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysWiki109658_2496$pathway,"%", 3)[,1]
+```
+
+#### GSE98411
+
+```{r, echo=FALSE}
+load("98411/upPathwaysWiki98411_2496.Rdata")
+```
+
+There are `r nrow(upPathwaysWiki98411_2496)` enriched Wiki pathways at this time point for GSE98411.
+```{r, echo=FALSE}
+str_split_fixed(upPathwaysWiki98411_2496$pathway, "%", 3)[,1]
+```
+
+#### Analyzing overlap between different pathway databases
+
+We compare only GSE75748, GSE109658 and GSE98411:
+```{r, echo=FALSE}
+grid.newpage()
+temp <- venn.diagram(list(GSE75748 = upPathwaysWiki75748_2496$pathway, GSE109658 = upPathwaysWiki109658_2496$pathway, 
+                  GSE98411 = upPathwaysWiki98411_2496$pathway), fill = c("skyblue", "pink1", "cyan"), 
+                  alpha = c(0.5, 0.5, 0.5), 
+                  cex = 2, cat.fontface = 4, lty =2, fontfamily =3, filename = NULL, 
+                  main = "DE differentiation (Wiki)", 
+                  category.names = c("GSE75748", "GSE109658", "GSE98411"))
+grid.draw(temp)
+```
+
+Again we have not very informative Vienn diagram. 
+
+The common pathways of three data sets:
+```{r, echo=FALSE}
+str_split_fixed(intersect(intersect(upPathwaysWiki75748_2496$pathway, upPathwaysWiki109658_2496$pathway),
+          upPathwaysWiki98411_2496$pathway), "%", 3)[,1]
+```
+```{r, echo=FALSE}
+rm(upPathwaysWiki109658_2496, upPathwaysWiki75748_2496, upPathwaysWiki98411_2496)
+```
+
+With Wiki pathways results are also not that great and informative. We see that all three data sets enriched at this time point with Ectoderm Differentiation pathway, which probably doesn't make sense. Or, taking into account that it's a differentiation between 24 and 96(72) hours, there might be common regulators between endoderm and ectoderm that are upregulated only at late stages of DE differentiation. PI3K-Akt-mTOR axis migh be relevant here, since It's known to interact with Activin/Nodal/TGF-beta pathway during differentiation, and also we can't say after GSEA without appropriate annotation, whether it's activated or down-regulated pathway.
+
+#### Conclusion for 24h-96h time point
+
+This time point turns out to be not so informative. Both KEGG and Reactome mostly showed common presence of collagen and ECM related pathways. Wiki showed controversial common enrichment of Ectoderm differentiation at that time point and PI3K-Akt-mTOR signaling pathway, which with some hands waving can be interpreted as a reasonable finding. 
+Why this time point is not informative? There might be several reasons. First one, bulk RNA-seq is not good for that type of analysis since population of cell can become more heterogeneous during time. Second one, annotations are not good enough in terms of annotation of appropriate pathways like FGF or BMP (KEGG for example), but these databases are common among all researchers in the world so it's hard to say that. Third one, all major pathways that play crucial role during DE differentiation (TGF-beta, WNt, MAPK pathway and so on) are already enriched during first stage and do not change significantly between 24 and 96 hours. 
+
+# Analysis of LINCS database 

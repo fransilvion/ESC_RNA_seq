@@ -143,6 +143,7 @@ load("gene_expression_mcf7.Rdata")
 
 We have entrez gene ids, we will convert them to gene symbols via this file:
 ```{r}
+#NO CONVERSION IF YOU USE WIKI PATHWAYS (BELOW)!!!
 gene_info <- read.table("~/GSEA_of_LINCS/Gene_Info.txt", header=TRUE, sep="\t", quote = "")
 head(gene_info)
 ```
@@ -154,8 +155,8 @@ test2 <- data.frame(pr_gene_id = entrez_genes)
 test2 <- merge(test2, gene_info[,c(1,2)], sort=F)
 
 #conversion
-rownames(gene_expression_mcf7) <- test2$pr_gene_symbol
-colnames(gene_expression_mcf7) <- lincs_metadata_mcf7$drug
+rownames(gene_expression_mcf7) <- test2$pr_gene_symbol #NO FOR WIKI!
+colnames(gene_expression_mcf7) <- lincs_metadata_mcf7$drug #YES FOR WIKI
 ```
 
 Function for running GSEA:
@@ -772,4 +773,247 @@ test <- all_drugs_Reactome %>%
   t()
 ```
 
+## Analysis of Wiki pathways
+
+Delete afterwards
+```{r}
+pathwaysWiki <- gmtPathways("~/ESC_RNA_seq/pathway_enrichment_analysis/Wikipathways.gmt")
+pathways_names <- names(pathwaysWiki)
+
+#we use sizes 15 and 300 and 10000 permutations
+#pathwaysKEGG and pathways_names must be specified in the environment!!!
+running_fgsea <- function(expression_vector){
+  fgseaRes <- fgsea(pathwaysWiki, expression_vector, minSize=15, maxSize=300, nperm=10000)
+  
+  res <- sapply(pathways_names, is_significant, fgseaRes)
+  #return(fgseaRes)
+  return(res)
+}
+
+```
+
+Running analysis with Wiki:
+```{r}
+#running analysis of all further drugs
+#not efficient but I don't care here about it so much
+start.time <- Sys.time()
+res1000Wiki <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+res1000Wiki <- t(res1000Wiki)
+save(res1000Wiki, file = "resWiki/res1000Wiki.Rdata")
+print("done with 1000")
+rm(res1000Wiki)
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+###################################################################
+
+res7000Wiki <- apply(gene_expression_mcf7[,c(6001:7000)], 2, running_fgsea)
+res7000Wiki <- t(res7000Wiki)
+save(res7000Wiki, file = "resWiki/res7000Wiki.Rdata")
+print("done with 7000")
+rm(res7000Wiki)
+
+res1000Wiki <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+res1000Wiki <- t(res1000Wiki)
+save(res1000Wiki, file = "resWiki/res1000Wiki.Rdata")
+print("done with 1000")
+rm(res1000Wiki)
+
+res1000Wiki <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+res1000Wiki <- t(res1000Wiki)
+save(res1000Wiki, file = "resWiki/res1000Wiki.Rdata")
+print("done with 1000")
+rm(res1000Wiki)
+
+res1000Wiki <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+res1000Wiki <- t(res1000Wiki)
+save(res1000Wiki, file = "resWiki/res1000Wiki.Rdata")
+print("done with 1000")
+rm(res1000Wiki)
+
+res1000Wiki <- apply(gene_expression_mcf7[,c(1:1000)], 2, running_fgsea)
+res1000Wiki <- t(res1000Wiki)
+save(res1000Wiki, file = "resWiki/res1000Wiki.Rdata")
+print("done with 1000")
+rm(res1000Wiki)
+
+```
+
+Keep analyzing the enriched pathways in LINCS for MCF7 (Wiki this time):
+```{r}
+#combine all results into single data frame
+load("resWiki/res1000Wiki.Rdata")
+all_drugs_Wiki <- res1000Wiki
+rm(res1000Wiki)
+
+load("resWiki/res2000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res2000Wiki)
+rm(res2000Wiki)
+
+load("resWiki/res3000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res3000Wiki)
+rm(res3000Wiki)
+
+load("resWiki/res4000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res4000Wiki)
+rm(res4000Wiki)
+
+load("resWiki/res5000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res5000Wiki)
+rm(res5000Wiki)
+
+load("resWiki/res6000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res6000Wiki)
+rm(res6000Wiki)
+
+load("resWiki/res7000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res7000Wiki)
+rm(res7000Wiki)
+
+load("resWiki/res8000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res8000Wiki)
+rm(res8000Wiki)
+
+load("resWiki/res9000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res9000Wiki)
+rm(res9000Wiki)
+
+load("resWiki/res10000Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res10000Wiki)
+rm(res10000Wiki)
+
+load("resWiki/res_final_Wiki.Rdata")
+all_drugs_Wiki <- rbind(all_drugs_Wiki, res_final_Wiki)
+rm(res_final_Wiki)
+
+save(all_drugs_Wiki, file="all_drugs_Wiki_matrix.Rdata")
+```
+
+Analyzing results of pathway enrichment for all drugs (WIKI):
+```{r}
+sum_across_all <- apply(all_drugs_Wiki, 2, sum)
+
+pathways <- names(sum_across_all)
+sum_across_all <- as.data.frame(sum_across_all)
+sum_across_all$Pathways <- pathways
+sum_across_all <- sum_across_all %>% filter(sum_across_all > 0)
+colnames(sum_across_all) <- c("Numbers", "Pathways")
+
+sum_across_all$Duble <- str_split_fixed(sum_across_all$Pathways, "%", 2)[,1]
+sum_across_all <- sum_across_all[,c(3,1,2)]
+#sum_across_all <- sum_across_all[,-3]
+colnames(sum_across_all) <- c("Pathways", "Numbers", "Old")
+
+sum_across_all <- sum_across_all[order(sum_across_all$Numbers, decreasing = TRUE),]
+
+sum_across_all %>%
+  head(25) %>%
+  ggplot(aes(x = fct_reorder(Pathways, Numbers), 
+             y = Numbers)) +
+  geom_col(fill = "red", colour = "black") +
+  labs(title = "Pathway numbers", 
+       x = "", y = "Number of drugs") +
+  coord_flip() +
+  theme(axis.text = element_text(angle = 90, hjust = 1)) +
+  theme_light() + 
+  theme(axis.text = element_text(size=10, face='bold'))
+```
+
+Again, most abundant terms are associated with ribosome (Cytoplasmic Ribosomal proteins) and with ECM (miRNA targets in ECM and membrane receptors, Focal adhesion).
+
+Most underrepresented pathways:
+```{r}
+sum_across_all %>%
+  tail(25) %>%
+  ggplot(aes(x = fct_reorder(Pathways, Numbers), 
+             y = Numbers)) +
+  geom_col(fill = "blue", colour = "black") +
+  labs(title = "Pathway numbers", 
+       x = "", y = "Number of drugs") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip() +
+  theme_light() +
+  theme(axis.text = element_text(size=10, face='bold'))
+```
+
+Just for testing (delete after):
+```{r}
+drugs_Wiki <- rownames(all_drugs_Wiki)
+all_drugs_Wiki <- as.data.frame(all_drugs_Wiki)
+rownames(all_drugs_Wiki) <- drugs_Wiki
+
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(`Endoderm Differentiation%WikiPathways_20180810%WP2853%Homo sapiens` == 1 &
+           `Cardiac Progenitor Differentiation%WikiPathways_20180810%WP2406%Homo sapiens` == 1)
+
+test$drug 
+```
+```{r}
+drugs_Wiki <- rownames(all_drugs_Wiki)
+all_drugs_Wiki <- as.data.frame(all_drugs_Wiki)
+rownames(all_drugs_Wiki) <- drugs_Wiki
+
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(`Endoderm Differentiation%WikiPathways_20180810%WP2853%Homo sapiens` == 1 &
+           `Cardiac Progenitor Differentiation%WikiPathways_20180810%WP2406%Homo sapiens` == 1 &
+           `ESC Pluripotency Pathways%WikiPathways_20180810%WP3931%Homo sapiens` == 1)
+
+test$drug 
+```
+
+Up-regulated pathways in BRD-K20168484:
+```{r}
+x <- test %>% filter(drug=="BRD-K20168484") %>% t()
+colnames(x) <- "Upregulation"
+x %>% as.data.frame() %>% rownames_to_column("Pathways") %>% filter(Upregulation == 1) %>% kable()
+```
+
+Let's test some previous interesting drugs: "carbetocin"  "linifanib"   "mestanolone", "BRD-K69894866", "Narciclasine", "CHIR-99021":
+(For some reacon Wiki has 2 Wnt pathways)
+```{r}
+#Differentiation Pathway, MAPK Signaling Pathway, Wnt Signaling Pathway
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "carbetocin") %>%
+  t()
+
+#Wnt Signaling Pathway and Pluripotency, TGF-beta Signaling Pathway,
+#Mesodermal Commitment Pathway, Notch Signaling Pathway,
+#Preimplantation Embryo, MAPK Signaling Pathway, 
+#Epithelial to mesenchymal transition in colorectal cancer
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "linifanib") %>%
+  t()
+
+#Wnt Signaling Pathway and that's it (some fat cell differentiation)
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "mestanolone") %>%
+  t()
+
+#Nothing really
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "BRD-K69894866") %>%
+  t()
+
+#White fat cell differentiation, TGF-beta Signaling Pathway,
+#Neural Crest Differentiation, Mesodermal Commitment Pathway, 
+#Preimplantation Embryo, MAPK Signaling Pathway, ErbB Signaling Pathway
+#LncRNA involvement in canonical Wnt signaling and colorectal cancer
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "narciclasine") %>%
+  t()
+
+#Mesodermal Commitment Pathway, Preimplantation Embryo
+test <- all_drugs_Wiki %>%
+  rownames_to_column("drug") %>%
+  filter(drug == "CHIR-99021") %>%
+  t()
+```
 
