@@ -37,7 +37,7 @@ Before we jump into GSEA analysis let's first describe a little bit different pa
 
 ### KEGG
 
-We shall start with the most famous probably pathway database, which is not updated (free version) since 2011, KEGG.
+We shall start with probably the most famous pathway database, which is not updated (free version) since 2011, KEGG.
 
 There are 186 pathways in total.
 
@@ -97,7 +97,9 @@ Smallest pathways contain only 10 genes. Also notice how broad and vague these t
 
 There are 2025 pathways in total.
 
-Distribution of counts of genes in each pathway for Reactome: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-7-1.png) Now we see that here the distribution is much more skewed than in KEGG.
+Distribution of counts of genes in each pathway for Reactome: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-7-1.png)
+
+Now we see that here the distribution is much more skewed than in KEGG.
 
 Now again let's try to look only at the largest pathways:
 
@@ -176,21 +178,11 @@ Turns out that 15 pathways in new annotation have size 0. Now let's look at Wiki
 
 There are 462 pathways in total.
 
-Distribution of counts of genes in each pathway for Wikipathways: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-11-1.png) Distribution looks similar to KEGG's. Let's check the largest and smallest pathways!
+Distribution of counts of genes in each pathway for Wikipathways: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-11-1.png)
+
+Distribution looks similar to KEGG's. Let's check the largest and smallest pathways!
 
 The largest pathways:
-
-``` r
-wiki_pathways_amount <- as.data.frame(wiki_pathways[,2])
-colnames(wiki_pathways_amount) <- "Pathway"
-wiki_pathways_amount$Size <- wiki_sizes_of_pathways
-
-wiki_pathways_amount <- wiki_pathways_amount %>%
-  arrange(desc(Size))
-
-wiki_pathways_amount$Pathway <- str_split_fixed(wiki_pathways_amount$Pathway, "%",3)[,1]
-head(wiki_pathways_amount, n = 20) #%>% kable()
-```
 
     ##                                                        Pathway Size
     ## 1                                   PI3K-Akt Signaling Pathway  345
@@ -217,10 +209,6 @@ head(wiki_pathways_amount, n = 20) #%>% kable()
 These pathways are similar in size with KEGG terms. What about the smallest ones?
 
 Some pathways from Wiki contain just one gene.
-
-``` r
-tail(wiki_pathways_amount, n = 20) #%>% kable()
-```
 
     ##                                                                                     Pathway
     ## 443                                                              Neurotransmitter Disorders
@@ -274,7 +262,7 @@ Now let's switch to actual analysis.
 
 ### KEGG
 
-Let's compare KEGG pathway enrichment data for different data sets at this time point
+Let's compare KEGG pathway enrichment data for different data sets at this time point.
 
 #### GSE75748
 
@@ -347,7 +335,7 @@ Here are the common pathways of all data sets:
     ## [3] "KEGG_TGF_BETA_SIGNALING_PATHWAY" "KEGG_PATHWAYS_IN_CANCER"        
     ## [5] "KEGG_BASAL_CELL_CARCINOMA"
 
-So we see that according to KEGG there are 5 common pathways at 0-24h time point of differentiation. Wnt signaling pathway and TGF-beta pathway are [know regulators of DE differentiation](https://www.ncbi.nlm.nih.gov/pubmed/23585347). With Hedgehog is not so clear, but it was shown to be beneficial for [pancreas differentiation in non-human species](https://www.sciencedirect.com/science/article/pii/S096098220100402X). Presence of Pathways in cancer term is probably due to relative similarity of processes that are happening in stem cell growth and differentiation and cancer. But still Pathways in cancer and Basal cell carcinoma look too broad to be considered as something specific for DE differentiation.
+So we see that according to KEGG there are 5 common pathways at 0-24h time point of differentiation. Wnt signaling pathway and TGF-beta pathway are [know regulators of DE differentiation](https://www.ncbi.nlm.nih.gov/pubmed/23585347). With Hedgehog is not so clear, but it was shown to be beneficial for [pancreas differentiation in non-human species](https://www.sciencedirect.com/science/article/pii/S096098220100402X). Presence of Pathways in cancer term is probably due to relative similarity of processes that are happening in stem cell growth and differentiation and in cancer. But still Pathways in cancer and Basal cell carcinoma look too broad to be considered as something specific for DE differentiation.
 
 Overal, it can be concluded that according to KEGG the most important pathways at the beginnig of differentiation are TFG-beta and Wnt signaling pathways (which is consistent with the literature).
 
@@ -483,7 +471,7 @@ The common pathways of two data sets:
     ## [3] "WNT LIGAND BIOGENESIS AND TRAFFICKING"
     ## [4] "ELASTIC FIBRE FORMATION"
 
-For Reactome we don't see consistency. GSE98411 didn't show any enrichment at all, however GSE75748 showed 87 enriched terms, and only 4 of them are common with GSE109658. But even these pathways are not specific at all. Collagen chain trimerization, extracellular matrix organization and elastic fibre formation might be relevant for every cell that is cultivated and treated with some component. Thus, only Wnt ligand biogenesis and trafficking looks appropriate and conistent with the literature.
+For Reactome we don't see consistency. GSE98411 didn't show any enrichment at all, however GSE75748 showed 87 enriched terms, and only 4 of them are common with GSE109658. But even these pathways are not specific at all. Collagen chain trimerization, extracellular matrix organization and elastic fibre formation might be relevant for every cell that is cultivated and treated with some component (see below). Thus, only Wnt ligand biogenesis and trafficking looks appropriate and conistent with the literature.
 
 ### Wiki
 
@@ -642,7 +630,7 @@ There are 12 enriched Wiki pathways at this time point for GSE98411.
 
 #### Analyzing overlap between different pathway databases
 
-We compare only GSE75748, GSE109658 and GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-37-1.png)
+We compare GSE75748, GSE109658 and GSE98411: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-37-1.png)
 
 For Wiki pathways we see that enriched pathways of GSE109658 are completely included in GSE75748. Total intersection between all three data sets is 10 terms.
 
@@ -795,7 +783,7 @@ There are 30 enriched Reactome pathways at this time point for GSE109658. Here t
     ## [29] "MUSCLE CONTRACTION"                            
     ## [30] "DISEASES OF GLYCOSYLATION"
 
-Again we have a lot of collagen and ECM related pathways. Also, notice that there is a signaling by BMP. According to \[published data\] BMP is inhibited at later stages of DE differentiation. Here comes the question, how should we interpret the result of GSEA enrichment: if we see enrichment at the top for one of the pathways, does it mean that it's activated? Probably it depends on annotation, here it's Reactome, and probably signaling by BMP has no direction.
+Again we have a lot of collagen and ECM related pathways. Also, notice that there is a signaling by BMP. According to [published data](https://www.cell.com/cell-reports/abstract/S2211-1247(18)30151-7) BMP is inhibited at later stages of DE differentiation. Here comes the question, how should we interpret the result of GSEA enrichment: if we see enrichment at the top for one of the pathways, does it mean that it's activated? Probably it depends on annotation, here it's Reactome, and probably signaling by BMP has no direction.
 
 #### GSE98411
 
@@ -937,7 +925,290 @@ With Wiki pathways results are also not that great and informative. We see that 
 
 #### Conclusion for 24h-96h time point
 
-This time point turns out to be not so informative. Both KEGG and Reactome mostly showed common presence of collagen and ECM related pathways. Wiki showed controversial common enrichment of Ectoderm differentiation at that time point and PI3K-Akt-mTOR signaling pathway, which with some hands waving can be interpreted as a reasonable finding. Why this time point is not informative? There might be several reasons. First one, bulk RNA-seq is not good for that type of analysis since population of cell can become more heterogeneous during time. Second one, annotations are not good enough in terms of annotation of appropriate pathways like FGF or BMP (KEGG for example), but these databases are common among all researchers in the world so it's hard to say that. Third one, all major pathways that play crucial role during DE differentiation (TGF-beta, WNt, MAPK pathway and so on) are already enriched during first stage and do not change significantly between 24 and 96 hours.
+This time point turns out to be not so informative. Both KEGG and Reactome mostly showed common presence of collagen and ECM related pathways. Wiki showed controversial common enrichment of Ectoderm differentiation at that time point and PI3K-Akt-mTOR signaling pathway, which with some hands waving can be interpreted as a reasonable finding. Why this time point is not informative? There might be several reasons:
+
+1.  bulk RNA-seq is not good for that type of analysis since population of cell can become more heterogeneous during time.
+2.  annotations are not good enough in terms of annotation of appropriate pathways like FGF or BMP (KEGG for example), but these databases are common among all researchers in the world so it's hard to say that.
+3.  all major pathways that play crucial role during DE differentiation (TGF-beta, Wnt, MAPK pathway and so on) are already enriched during first stage and do not change significantly between 24 and 96 hours.
 
 Analysis of LINCS database
 ==========================
+
+LINCS data was converted to log-fold changes for each individual experiment by PhD student from Paul Pavlidis lab, Nathaniel Lim.
+
+Several assumptions, which he made:
+
+1.  All samples with the same "$DOSE $CHEMICAL $TIME $CELL" properties to be an identical experiment, while disregarding which L1000-plate the data comes from. The shortcoming of this is the inability to perform batch correction, especially if the same experiment is performed many times across different plates and/or centres; The good approximation of the "true mean" can be made with law of large numbers only for controls (their mean sample size is around 400), however for actual treatments it is around 10.
+2.  Fold Change is calculated as the difference between the mean treatment expression and mean control expression (both which are log2-transformed). The method used for "condition matching" is a little complicated, though the underlying logic is very simple. The idea is to match the treatment and control groups so that as many factors are similar as possible. In the order of strictness, the factors taken into consideration are:
+
+-   The treatment and control samples are from the same cell line. (Absolute minimum)
+-   The treatment and control samples are from the same time point. (This rule is broken very infrequently when the appropriate control samples do not exist)
+
+1.  For compound treatments (trt\_cp), the control must either be vehicle controls (ctl\_vehicle) or untreated controls (ctl\_untrt). The order of preferred control samples are (left-most being highly preferred): DMSO, PBS/H2O/Untreated, Misc\*. Conditioned upon the above rules being fulfilled, the group with the most samples will be chosen for the control group.
+
+LINCS has around 70 cell lines, but only ~15 of them have big number of samples. For now let's focus on one cell line. Since we try to predict small molecules that can be beneficial for stem cell differentiation, it would be better to find cell line, which is the most similar to stem cells. LINCS mostly contains cancer cell lines and according to Francis Lynn and Michael Underhill none of them actually resemble hESC.
+
+I decided to go with MCF7, because it has some similarity in epigenetic bivalent marks (H3K4me3 and H3K27me3 co-localized at gene promoters) with hESC according to this [paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4946968/).
+
+So each LINCS data set contains 12328 genes (L1000, well inferred and inferred).
+
+There are 14722 experiments with MCF7 cell line, which were performed for 24 hours (not including replicates). If we take unique molecules (some molecules were used with different concentration and duration), this amount will reduce to 10627.
+
+For this data analysis I used only experiments with unique molecules, for each molecule I took the highest concentration. Duration of treatment (24 hours) was chosen based on duration of first stage DE differentiation.
+
+This drug treatment data were analyzed with all pathway databases: KEGG, Reactome and Wiki. Here are the results.
+
+KEGG
+----
+
+So GSEA with KEGG annotation was performed for every instance (for every compound) in MCF7. If we count for each pathway, how many times it's found to be enriched in different experiments in MCF7, here are the top results: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-68-1.png)
+
+So we see that ECM receptor interaction is found in more than 3000 experiments (the total number again is 10627). Other frequently enriched pathways are Ribosome, Focal adhesion, Spliceosome and others. So indeed we see that ECM and Focal adhesion terms are not specific at all.
+
+Most rarely enriched pathways: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-69-1.png)
+
+Amount of drugs that have enriched pathways that are associated with DE differentiation (see above): ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-70-1.png)
+
+To be more specific, let's focus on those drugs that both activate TGF-beta and Wnt signaling pathways. It's only 3 small molecules and here they are:
+
+    ## [1] "carbetocin"  "linifanib"   "mestanolone"
+
+Here are the enriched pathways in Carbetocin:
+
+    ##                                                      pathway
+    ## 1                                              KEGG_RIBOSOME
+    ## 2                                KEGG_MAPK_SIGNALING_PATHWAY
+    ## 3                KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION
+    ## 4               KEGG_NEUROACTIVE_LIGAND_RECEPTOR_INTERACTION
+    ## 5                                 KEGG_WNT_SIGNALING_PATHWAY
+    ## 6                            KEGG_TGF_BETA_SIGNALING_PATHWAY
+    ## 7                                        KEGG_FOCAL_ADHESION
+    ## 8                              KEGG_ECM_RECEPTOR_INTERACTION
+    ## 9                          KEGG_CELL_ADHESION_MOLECULES_CAMS
+    ## 10                                    KEGG_ADHERENS_JUNCTION
+    ## 11                  KEGG_COMPLEMENT_AND_COAGULATION_CASCADES
+    ## 12                           KEGG_JAK_STAT_SIGNALING_PATHWAY
+    ## 13                           KEGG_HEMATOPOIETIC_CELL_LINEAGE
+    ## 14                 KEGG_LEUKOCYTE_TRANSENDOTHELIAL_MIGRATION
+    ## 15                               KEGG_OLFACTORY_TRANSDUCTION
+    ## 16                     KEGG_REGULATION_OF_ACTIN_CYTOSKELETON
+    ## 17                                      KEGG_PROSTATE_CANCER
+    ## 18                               KEGG_SMALL_CELL_LUNG_CANCER
+    ## 19 KEGG_ARRHYTHMOGENIC_RIGHT_VENTRICULAR_CARDIOMYOPATHY_ARVC
+    ## 20                               KEGG_DILATED_CARDIOMYOPATHY
+
+It is also enriched for HEMATOPOIETIC CELL LINEAGE pathway, which might be interesting, since hematopoietic cells are derived from mesoderm. Also it's enriched for prostate and lung cancer pathways, which also might point to some stem cell related process. Moreover, JAK/STAT might be [beneficial for myogenesis](https://www.ncbi.nlm.nih.gov/pubmed/21388555).
+
+Now let's check linifanib:
+
+    ##                                                      pathway
+    ## 1                                KEGG_MAPK_SIGNALING_PATHWAY
+    ## 2                                KEGG_ERBB_SIGNALING_PATHWAY
+    ## 3                                              KEGG_LYSOSOME
+    ## 4                                           KEGG_ENDOCYTOSIS
+    ## 5                                             KEGG_APOPTOSIS
+    ## 6                            KEGG_CARDIAC_MUSCLE_CONTRACTION
+    ## 7                    KEGG_VASCULAR_SMOOTH_MUSCLE_CONTRACTION
+    ## 8                                 KEGG_WNT_SIGNALING_PATHWAY
+    ## 9                               KEGG_NOTCH_SIGNALING_PATHWAY
+    ## 10                           KEGG_HEDGEHOG_SIGNALING_PATHWAY
+    ## 11                           KEGG_TGF_BETA_SIGNALING_PATHWAY
+    ## 12                                        KEGG_AXON_GUIDANCE
+    ## 13                               KEGG_VEGF_SIGNALING_PATHWAY
+    ## 14                                       KEGG_FOCAL_ADHESION
+    ## 15                             KEGG_ECM_RECEPTOR_INTERACTION
+    ## 16                                    KEGG_ADHERENS_JUNCTION
+    ## 17                                         KEGG_GAP_JUNCTION
+    ## 18            KEGG_NATURAL_KILLER_CELL_MEDIATED_CYTOTOXICITY
+    ## 19                     KEGG_FC_GAMMA_R_MEDIATED_PHAGOCYTOSIS
+    ## 20                 KEGG_LEUKOCYTE_TRANSENDOTHELIAL_MIGRATION
+    ## 21                               KEGG_LONG_TERM_POTENTIATION
+    ## 22                       KEGG_NEUROTROPHIN_SIGNALING_PATHWAY
+    ## 23                     KEGG_REGULATION_OF_ACTIN_CYTOSKELETON
+    ## 24                               KEGG_GNRH_SIGNALING_PATHWAY
+    ## 25                                        KEGG_MELANOGENESIS
+    ## 26             KEGG_VASOPRESSIN_REGULATED_WATER_REABSORPTION
+    ## 27              KEGG_PROXIMAL_TUBULE_BICARBONATE_RECLAMATION
+    ## 28                            KEGG_VIBRIO_CHOLERAE_INFECTION
+    ## 29                                               KEGG_GLIOMA
+    ## 30                                      KEGG_PROSTATE_CANCER
+    ## 31                                       KEGG_THYROID_CANCER
+    ## 32                                       KEGG_BLADDER_CANCER
+    ## 33                             KEGG_CHRONIC_MYELOID_LEUKEMIA
+    ## 34                               KEGG_SMALL_CELL_LUNG_CANCER
+    ## 35 KEGG_ARRHYTHMOGENIC_RIGHT_VENTRICULAR_CARDIOMYOPATHY_ARVC
+    ## 36                               KEGG_DILATED_CARDIOMYOPATHY
+
+It is enriched for MAPK pathway, which is also required for [definitive endoderm differentiation](https://www.ncbi.nlm.nih.gov/pubmed/22960178). However we should keep in mind that MAPK pathway is among the most abundant pathways.
+
+Now mestanolone:
+
+    ##                                                      pathway
+    ## 1                          KEGG_STEROID_HORMONE_BIOSYNTHESIS
+    ## 2                                KEGG_PPAR_SIGNALING_PATHWAY
+    ## 3                             KEGG_CALCIUM_SIGNALING_PATHWAY
+    ## 4                KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION
+    ## 5               KEGG_NEUROACTIVE_LIGAND_RECEPTOR_INTERACTION
+    ## 6                                 KEGG_WNT_SIGNALING_PATHWAY
+    ## 7                            KEGG_TGF_BETA_SIGNALING_PATHWAY
+    ## 8                                         KEGG_AXON_GUIDANCE
+    ## 9                                        KEGG_FOCAL_ADHESION
+    ## 10                             KEGG_ECM_RECEPTOR_INTERACTION
+    ## 11                               KEGG_OLFACTORY_TRANSDUCTION
+    ## 12                             KEGG_PRIMARY_IMMUNODEFICIENCY
+    ## 13 KEGG_ARRHYTHMOGENIC_RIGHT_VENTRICULAR_CARDIOMYOPATHY_ARVC
+    ## 14                               KEGG_DILATED_CARDIOMYOPATHY
+
+Still it's quite hard to tell something more about these drugs and their potential mechanism since KEGG terms are so broad.
+
+Reactome
+--------
+
+Now let's build the same figures for Reactome: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-77-1.png)
+
+Here among enriched terms we can see a lot of pathways associated with protein synthesis and translation (recall that for KEGG RIBOSOME was among the most enriched ones). Also, just like in KEGG analysis, Extracellular matrix organization (ECM organization is among the top pathways).
+
+Most rarely enriched pathways: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-78-1.png)
+
+Noteworthy, there is one instance of drugs that activate pathways, which might be related to DE differentiation: TRANSCRIPTIONAL ACTIVITY OF SMAD2 SMAD3:SMAD4 HETEROTRIMER (narciclasine), DOWNSTREAM SIGNALING OF ACTIVATED FGFR4, SIGNALING BY FGFR (CHIR-99021 ), NUCLEAR SIGNALING BY ERBB4, BETA-CATENIN PHOSPHORYLATION CASCADE (RS-102221). Drugs that are enriched for these pathways are nacriclasine, CHIR-99021 and RS-102221
+
+Narciclasine also enriched for RUNX1 REGULATES TRANSCRIPTION OF GENES INVOLVED IN DIFFERENTIATION OF HSCS, NEGATIVE REGULATION OF MAPK PATHWAY, DOWNREGULATION OF SMAD2 3:SMAD4 TRANSCRIPTIONAL ACTIVITY (!), ACTIVATION OF HOX GENES DURING DIFFERENTIATION, ACTIVATION OF ANTERIOR HOX GENES IN HINDBRAIN DEVELOPMENT, MAP KINASE ACTIVATION (!), also beta-catenin. Signaling by notch is probably more associated with mesoderm differentiation. (in KEGG only MAPK). To conclude, this drug is not so interesting.
+
+CHIR-99021 has SIGNALING BY NOTCH4, DEGRADATION OF BETA-CATENIN BY THE DESTRUCTION COMPLEX, NEGATIVE REGULATION OF NOTCH4 SIGNALING, TCF DEPENDENT SIGNALING IN RESPONSE TO WNT, ERK1 ERK2 PATHWAY, HEDGEHOG 'ON' STATE, EGFR DOWNREGULATION, HEDGEHOG 'OFF' STATE, SIGNALING BY FGFR, SIGNALING BY WNT. (in KEGG nothing). This drug is used for the first step of [DE differentiation](https://www.ncbi.nlm.nih.gov/pubmed/24913278). But it's necessary only for the first stage, prolonged action leads to mesoderm formation.
+
+RS-102221 has nothing really interesting.
+
+How many of those drugs that activate WNT LIGAND BIOGENESIS AND TRAFFICKING (which was present in all two tested GSE data sets)?
+
+``` r
+drugs_Reactome <- rownames(all_drugs_Reactome)
+all_drugs_Reactome <- as.data.frame(all_drugs_Reactome)
+rownames(all_drugs_Reactome) <- drugs_Reactome
+
+test <- all_drugs_Reactome %>%
+  rownames_to_column("drug") %>%
+  filter(`WNT LIGAND BIOGENESIS AND TRAFFICKING%REACTOME%R-HSA-3238698.1` == 1)
+
+test$drug 
+```
+
+    ##   [1] "LY-294002"     "ixazomib"      "BRD-K22215695" "BRD-K61627029"
+    ##   [5] "BRD-K22988559" "BRD-K85275009" "BRD-K23342641" "BRD-A06641369"
+    ##   [9] "BRD-A76641868" "BRD-K23935793" "BRD-K27484191" "BRD-K35100517"
+    ##  [13] "BRD-K36287933" "BRD-K51973945" "BRD-K60870698" "BRD-K73709114"
+    ##  [17] "BRD-K36087356" "BRD-K15640888" "KU-C103428N"   "KU-C104236N"  
+    ##  [21] "BRD-A53107311" "BRD-K48974000" "BRD-A97035593" "BRD-A35141262"
+    ##  [25] "BRD-K72787121" "BRD-K97274161" "BRD-K56446541" "BRD-K59024967"
+    ##  [29] "BRD-K13842623" "BRD-K70503895" "BRD-K92458042" "BRD-K00925050"
+    ##  [33] "BRD-K37940862" "BRD-A93942655" "PSH-013"       "PSH-023"      
+    ##  [37] "VU-0403126"    "BRD-K95337198" "BRD-K87726525" "BRD-K11928012"
+    ##  [41] "VU-0418939-2"  "VU-0418946-1"  "VU-0418947-2"  "methotrexate" 
+    ##  [45] "GP-42"         "BRD-A43155244" "BRD-K01614657" "BRD-K08307026"
+    ##  [49] "SC-I-004"      "BRD-K61717269" "MD-049"        "BRD-K75128590"
+    ##  [53] "BRD-K81795824" "BRD-K88964386" "BRD-A72837804" "BRD-K31851742"
+    ##  [57] "JFD02227"      "PD-168077"     "varenicline"   "topotecan"    
+    ##  [61] "tunicamycin"   "thiostrepton"  "BRD-K45044657" "belinostat"   
+    ##  [65] "KM-00927"      "epirubicin"    "SA-247714"     "SA-1017940"   
+    ##  [69] "BRD-K05001416" "BRD-K57346283" "SA-1925246"    "SA-247636"    
+    ##  [73] "SA-418993"     "SA-427604"     "SA-1459031"    "SA-1459172"   
+    ##  [77] "SA-1919710"    "SA-247582"     "SA-247592"     "SA-419172"    
+    ##  [81] "SA-426029"     "SA-1456195"    "SA-1459234"    "SA-1922111"   
+    ##  [85] "SA-1922257"    "SA-1944378"    "SA-424763"     "SA-1456170"   
+    ##  [89] "SA-1921599"    "SA-243193"     "BRD-K00007652" "BRD-K79797318"
+    ##  [93] "SA-1922796"    "BRD-K45355657" "BRD-K46285453" "BRD-K59761766"
+    ##  [97] "BRD-K53987746" "BRD-K76211160" "BRD-K84855138" "BRD-K20168484"
+    ## [101] "AF-DX-116"     "ampiroxicam"   "BRD-K09295900" "lorazepam"
+
+Almost 104! But are they specific? It's hard to tell since GSEA analysis of Reactome pathways didn't show any specific terms for DE differentiation.
+
+Also let's try the following term SIGNALING BY TGF-BETA RECEPTOR COMPLEX (which is interesting, since we know that TGF-beta pathways plays a crucial role in differentiation process):
+
+    ##  [1] "SCH-79797"                       "BRD-K64024097"                  
+    ##  [3] "Merck60"                         "BRD-K18929270"                  
+    ##  [5] "BRD-K08412560"                   "BRD-K14200107"                  
+    ##  [7] "Broad-Sai-609"                   "benzohydroxamic-acid"           
+    ##  [9] "BRD-K61894884"                   "Broad-Sai-370"                  
+    ## [11] "phorbol-12-myristate-13-acetate" "BRD-K69894866"
+
+None of them also enriched for WNT LIGAND BIOGENESIS AND TRAFFICKING! But are there some drugs that are enriched for TGF-BETA RECEPTOR SIGNALING ACTIVATES SMADS, which is also might be relevant for DE differentiation, since signal for differentiation from TGF-beta goes through SMAD complex.
+
+    ## [1] "BRD-K53932786" "BRD-K92048968" "BRD-K36462169" "BRD-K69894866"
+
+Again, none of these molecules is enriched for Wnt trafficking. But BRD-K69894866 (which is also enriched for TGF-beta receptor complex signaling) is enriched for this SMAD-related pathway!
+
+Another potentially related to DE differentiation pathway is TGF-BETA RECEPTOR SIGNALING IN EMT (EPITHELIAL TO MESENCHYMAL TRANSITION), since [EMT is crucial for DE differentiation](https://www.nature.com/articles/ncomms15166).
+
+    ## [1] "BRD-K10361096" "BRD-K30351863" "BRD-K69396629" "BRD-K18724229"
+    ## [5] "BRD-A84524947" "BRD-K01614657" "Merck60"       "BRD-K62450654"
+    ## [9] "BRD-K69894866"
+
+Here BRD-K01614657 is enriched for WNT BIOGENESIS AND TRAFFICKING, which might be interesting. Merck60 is enriched for this pathway and SIGNALING BY TGF-BETA RECEPTOR COMPLEX (another interesting candidate)
+
+But probably the most interesting result is BRD-K69894866 (it's enriched for SIGNALING BY TGF-BETA RECEPTOR COMPLEX, TGF-BETA RECEPTOR SIGNALING ACTIVATES SMADS and TGF-BETA RECEPTOR SIGNALING IN EMT (EPITHELIAL TO MESENCHYMAL TRANSITION)). Also in KEGG annotation it's enriched for ERBB pathway.
+
+If we inspect previous three drugs, which we found with REACTOME (see above), here are the most interesting and enriched pathways that might be related to DE differentiation:
+
+-   Carbetocin - no TGF, WNT or BMP signaling pathways. Not interesting.
+-   Linifanib - PRE-NOTCH EXPRESSION AND PROCESSING, TCF DEPENDENT SIGNALING IN RESPONSE TO WNT, VEGFA-VEGFR2 PATHWAY, SIGNALING BY NOTCH, SIGNALING BY HEDGEHOG, SIGNALING BY WNT. Might be interesting.
+-   Mestanolone - REGULATION OF BETA-CELL DEVELOPMENT. Probably nothing.
+
+Notice that we encountered NOTCH pathway in linifanib. Is it related to DE differentiation? Well, NOTCH is controversial. Here is the piece from this [paper]((https://www.ncbi.nlm.nih.gov/pubmed/23585347)) - "This suggests that culture conditions of ESCs affect their responses to Notch inhibitors, and that blocking this pathway can in certain circumstances induce a lineage that is known to originate from the anterior PS/mesendoderm."
+
+Now let's move on to Wiki pathways.
+
+Wiki pathways
+-------------
+
+Analyzing results of pathway enrichment for all drugs: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-84-1.png)
+
+Again, most abundant terms are associated with ribosome (Cytoplasmic Ribosomal proteins) and with ECM (miRNA targets in ECM and membrane receptors, Focal adhesion).
+
+Most underrepresented pathways: ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-85-1.png)
+
+Amount of drugs that have enriched pathways that are associated with DE differentiation (see above, pathways that are common across all three GSE data sets): ![](pathway_analysis_report_files/figure-markdown_github/unnamed-chunk-86-1.png)
+
+For some reason, Wiki pathways have two Wnt Signaling pathway terms. The one that is common for all GSE data sets has ID Wnt Signaling Pathway%WikiPathways\_20180810%WP428%Homo sapiens, and it has 204 instances in all MCF7 experiments (not shown).
+
+So we can say that most specific and related to DE terms here are Endoderm differentiation (probably the most important), Differentiation pathway, Mesodermal Commitment, ESC pluripotency pathways (which is debatable).
+
+There are 10 drugs that are enriched for Endoderm differentiation:
+
+    ##  [1] "taxifolin"     "SA-1462738"    "SA-1938111"    "SA-1938219"   
+    ##  [5] "SA-247654"     "SA-418993"     "SA-85901"      "SA-89705"     
+    ##  [9] "SA-1459008"    "BRD-K20168484"
+
+Now let's try to be more specific here. Which of them is also enriched for Differentiation pathway and Mesodermal Commitment?
+
+    ## [1] "taxifolin"     "SA-1938111"    "SA-1938219"    "SA-247654"    
+    ## [5] "SA-85901"      "SA-89705"      "SA-1459008"    "BRD-K20168484"
+
+Great! Almost 8 drugs. Let's inspect them in more detail here (what other relevant pathways are present in their enrichment data).
+
+-   Taxifolin - Heart development, Cardiac progenitor differentiation. No Wnt related pathways.
+-   SA-1938111 - Wnt signaling pathway and pluripotency, Wnt signaling pathway, Cardic progenitor differentiation.
+-   SA-1938219 - Wnt signaling pathway, Cardiac progenitor differentiation, LncRNA involvement in canonical Wnt signaling and colorectal cancer.
+-   SA-247654 - TGF-beta receptor signaling, Canonical and Non-canonical Notch signaling, Wnt signaling pathway, Cardiac progenitor differentitation, LncRNA involvement in canonical Wnt signaling and colorectal cancer, Epithelial to mesenchymal transition in colorectal cancer.
+-   SA-85901 - Wnt signaling pathway, Cardiac progenitor differentiation, LncRNA involvement in canonical Wnt signaling and colorectal cancer.
+-   SA-89705 - MAPK signaling pathway, Wnt signaling pathway, Cardiac progenitor differentiation, LncRNA involvement in canonical Wnt signaling and colorectal cancer.
+-   SA-1459008 - Cardiac progenitor differentiation, Epithelial to mesenchymal transition in colorectal cancer.
+-   BRD-K20168484 - Hematopoietic stem cell differentiation, Wnt signaling pathway and pluripotency, Cardiac progenitor differentiation, Wnt signaling in Kidney disease, Focal adhesion-PI3K-Akt-mTOR signaling pathway
+
+So basically all this drugs are of potential interest. Let's now check previous drugs:
+
+-   BRD-K01614657 - nothing really interesting
+-   Merck60 - nothing really interesting
+-   BRD-K69894866 - mTOR signaling, VEGFA-VEGFR2 signaling pathway
+-   Carbetocin - Differentiation pathway, MAPK signaling pathway, Wnt signaling pathway, VEGFA-VEGFR2 signaling pathway, Focal adhesion-PI3K-Akt-mTOR-signaling pathway, LncRNA involvement in canonical Wnt signaling and colorectal cancer, Oligodendrocyte differentiation
+-   Linifanib - Wnt signaling pathway and pluripotency, TGF-beta signaling pathway, Mesodermal commitment pathway, Notch-signaling pathway, Preimplantation Embryo, MAPK signaling pathway, Wnt signaling pathway, Erbb signaling pathway, Focal adhesion-PI3K-Akt-mTOR-signaling pathway, VEGFA-VEGFR2 signaling pathway, Epithelial to mesenchymal transition in colorectal cancer.
+-   Mestanolone - Differentiation of adipocyte, Wnt signaling pathway, Cardiac progenitor differentiation, Focal adhesion-PI3K-Akt-mTOR-signaling pathway.
+
+Overall, drugs that were interesting after Reactome analysis are not interesting at all with Wiki annotation. However, interesting drugs from KEGG are also interesting in Wiki.
+
+LINCS conclusion
+----------------
+
+Several conclusions can be made:
+
+1.  After enrichment analysis of MCF7 experiments with KEGG, Reactome and Wiki pathways following 11 small molecules were found to be interesting (and worth experimental validation): "taxifolin", "SA-1462738", "SA-1938111", "SA-1938219", "SA-247654", "SA-418993", "SA-85901", "SA-89705", "SA-1459008", "BRD-K20168484", "carbetocin", "linifanib", "mestanolone".
+2.  There is a low agreement between KEGG/Reactome and Wiki/Reactome. However, Wiki analysis proved that KEGG results are interesting.
+3.  Only tiny fraction of experiments in MCF7 is enriched for terms that are relevant for DE differentiation (it's true for KEGG/Reactome/Wiki). It makes problem of pathway (DE related) prediction based on chemical structure not feasible. We might try to analyze other cell lines, but here we might face the problem that same drugs induce different pathways in different cell lines (inconsistency between cell lines) and it's not guaranteed that we will find enough number of instances with enriched DE pathways.
