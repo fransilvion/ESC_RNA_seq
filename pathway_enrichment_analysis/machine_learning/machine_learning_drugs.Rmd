@@ -1,0 +1,105 @@
+---
+title: "Machine learning for drugs"
+author: "German Novakovskiy"
+date: "September 1, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(ReactomePA)))
+suppressMessages(suppressWarnings(library(clusterProfiler)))
+suppressMessages(suppressWarnings(library(fgsea)))
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(rlist)))
+suppressMessages(suppressWarnings(library(rcdk)))
+suppressMessages(suppressWarnings(library(webchem)))
+```
+
+Let's build several machine learning models for SOX17 activation prediction based on small molecule chemical structure. We will consider this problem as a binary classification: 0 if SOX17 is not activated, 1 otherwise. Activation of SOX17 will be based on corresponding log fold change from LINCS expression data. 
+
+SOX17 is a major marker of definitive endoderm, it's highly expressed at this stage and it's expression is downregulated during pluripotency stage. 
+
+This is how distribution of SOX17 expression looks like:
+```{r}
+load("MCF7_gene_expression.Rdata")
+
+sox17_lfc <- rows_cols_gene_expression_mcf7["SOX17",]
+rm(rows_cols_gene_expression_mcf7)
+
+hist(sox17_lfc, breaks=50, main = "SOX17 logFC distribution",
+     xlab = "logFC", col = "cyan")
+```
+
+Looks like a standard npormal distribution (it should be we log fold changes). We will take 5% (95% percentile) at the right tail as activated genes:
+```{r}
+#what is 95% percentile
+threshold <- quantile(sox17_lfc, c(.95))
+threshold
+```
+```{r}
+#drugs that activate expression of SOX17 
+drugs_positive <- sox17_lfc[sox17_lfc >= threshold] #532 drugs
+
+#drugs that do not activate expression of SOX17 (we do not care about inactivation)
+drugs_negative <- sox17_lfc[sox17_lfc < threshold] #10095 drugs
+```
+
+We will use MACCS small molecule descriptors - binary in nature and typically encode the presence or absence of substructural fragments (calculate them with Rcpi package). It works but for correct names.
+
+DOWNLOAD CORRECT NAMES (THEY ALREADT GO WITH SMILES) FROM GSE92742_Broad_LINCS_pert_info.txt.gz
+```{r}
+#function for retrieving canonical SMILES from PubChem
+#input - drug name
+#output - SMILES
+getSmiles <- function(drug_name){
+  cid <- get_cid(drug_name)
+  res <- pc_prop(cid = cid)
+  res <- res$CanonicalSMILES
+  return(res)
+}
+
+#function for retrieving MACCS 166 bit descriptors
+#input - SMILES
+#output - MACCS 166 descriptors
+getMACCS <- function(smiles_character){
+  mols <- parse.smiles(smiles_character)
+  fp <- get.fingerprint(mols[[1]], type="maccs")
+  
+  #fp is a S4 class, bits field is a vector, indicating the bit positions that are on.
+  res <- fp@bits
+  return(res)
+}
+```
+
+Try to run for 100 drugs and measure time:
+```{r}
+for_testing <- drugs_positive[1:50]
+start.time <- Sys.time()
+
+drugs_smiles <- sapply(for_testing, getSmiles)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+
