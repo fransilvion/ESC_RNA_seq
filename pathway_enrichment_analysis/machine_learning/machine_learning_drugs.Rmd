@@ -33,6 +33,7 @@ suppressMessages(suppressWarnings(library(stringr)))
 suppressMessages(suppressWarnings(library(rlist)))
 suppressMessages(suppressWarnings(library(rcdk)))
 suppressMessages(suppressWarnings(library(webchem)))
+suppressMessages(suppressWarnings(library(caret)))
 ```
 
 Let's build several machine learning models for SOX17 activation prediction based on small molecule chemical structure. We will consider this problem as a binary classification: 0 if SOX17 is not activated, 1 otherwise. Activation of SOX17 will be based on corresponding log fold change from LINCS expression data. 
@@ -64,17 +65,30 @@ drugs_positive <- sox17_lfc[sox17_lfc >= threshold] #532 drugs
 drugs_negative <- sox17_lfc[sox17_lfc < threshold] #10095 drugs
 ```
 
-We will use MACCS small molecule descriptors - binary in nature and typically encode the presence or absence of substructural fragments (calculate them with Rcpi package). It works but for correct names.
-
-DOWNLOAD CORRECT NAMES (THEY ALREADT GO WITH SMILES) FROM GSE92742_Broad_LINCS_pert_info.txt.gz
+We will use MACCS small molecule descriptors - binary in nature and typically encode the presence or absence of substructural fragments (calculate them with Rcpi package). 
 ```{r}
 #function for retrieving canonical SMILES from PubChem
 #input - drug name
 #output - SMILES
-getSmiles <- function(drug_name){
-  cid <- get_cid(drug_name)
-  res <- pc_prop(cid = cid)
-  res <- res$CanonicalSMILES
+getSmiles <- function(drug_name, df_drugs){
+  my_drug <- df_drugs %>% filter(pert_iname == drug_name)
+  
+  #if someone is not 666
+  if (nrow(my_drug) > 1){ 
+    if (my_drug %>% filter(pubchem_cid != -666) %>% nrow() == 1){
+      my_drug <- my_drug %>% filter(pubchem_cid != -666) 
+    }
+    else if (my_drug %>% filter(is_touchstone != 0) %>% nrow() == 1){
+      #if both 666 take with is_touchstone 1
+      my_drug <- my_drug %>% filter(is_touchstone != 0)
+    } else {
+      #like in case of CHIR-99021
+      my_drug <- my_drug[1,]
+    }
+    }
+  
+  res <- as.character(my_drug$canonical_smiles)
+  if (res == -666 | res == 'restricted') { res <- NULL}
   return(res)
 }
 
@@ -91,15 +105,114 @@ getMACCS <- function(smiles_character){
 }
 ```
 
-Try to run for 100 drugs and measure time:
+Load LINCS drug information (from GSE92742_Broad_LINCS_pert_info.txt.gz)
 ```{r}
-for_testing <- drugs_positive[1:50]
+#cols - "pert_id", "pert_iname", "pert_type", "is_touchstone", "inchi_key_prefix", "inchi_key", "canonical_smiles","pubchem_cid" 
+drug_info <- read.table("LINCS_compounds_info.txt", header = T, quote = "", sep = "\t", comment.char = "")
+dim(drug_info)
+```
+Note that there are repeats, for example "trichostatin-a" has 2 entries. In this case we take only those, for which pubchem_cid does not equal -666. (however, the one line for this drug with -666 has classical smiles, while another one with pubchem id has isomeric smiles...).
+```{r}
+#how many drugs among positives have repeats in drug_info file
+x <- drug_info %>% filter(pert_iname %in% names(drugs_positive)) 
+length(x$pert_iname[which(duplicated(x$pert_iname))])
+```
+```{r}
+#those replicates
+as.character(x$pert_iname[which(duplicated(x$pert_iname))])
+```
+```{r}
+#how many drugs among negatives have repeats in drug_info file
+x <- drug_info %>% filter(pert_iname %in% names(drugs_negative)) 
+length(x$pert_iname[which(duplicated(x$pert_iname))])
+```
+
+Note that some of the drugs in info file don't have Smiles. We simply delete them. 
+
+Try to run for some drugs and measure time:
+```{r}
+#takes ~5 seconds
+for_testing <- names(drugs_positive)
 start.time <- Sys.time()
 
-drugs_smiles <- sapply(for_testing, getSmiles)
+drugs_smiles_positive <- sapply(for_testing, getSmiles, drug_info)
+
+#delete zeros if there are some
+x <- lapply(drugs_smiles_positive, length)
+deleted_positives <- sum(x == 0)
+drugs_smiles_positive <- drugs_smiles_positive[which(x != 0)]
+###############################
+
+drug_maccs_positive <- sapply(drugs_smiles_positive, getMACCS)
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
+```
+```{r}
+#takes ~1 minute
+for_testing <- names(drugs_negative)
+start.time <- Sys.time()
+ 
+drugs_smiles_negative <- sapply(for_testing, getSmiles, drug_info)
+
+#delete zeros if there are some
+x <- lapply(drugs_smiles_negative, length)
+deleted_negatives <- sum(x == 0)
+drugs_smiles_negative <- drugs_smiles_negative[-which(x == 0)]
+###############################
+
+drug_maccs_negative <- sapply(drugs_smiles_negative, getMACCS)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+length(drug_maccs_positive)
+```
+```{r}
+length(drug_maccs_negative)
+```
+```{r}
+#function for turning the maccs bit descriptors to binary vector with 166 terms
+bitsToVector <- function(non_zero_indexes){
+  y <- rep(0, 166)
+  y[non_zero_indexes] = 1
+  return(y)
+}
+
+drug_maccs_positive <- lapply(drug_maccs_positive, bitsToVector)
+
+drug_maccs_negative <- lapply(drug_maccs_negative, bitsToVector)
+
+#converting lists to data frame
+drugs <- names(drug_maccs_positive)
+drug_maccs_positive <- data.frame(matrix(unlist(drug_maccs_positive), nrow=532, byrow=T))
+rownames(drug_maccs_positive) <- drugs
+
+drugs <- names(drug_maccs_negative)
+drug_maccs_negative <- data.frame(matrix(unlist(drug_maccs_negative), nrow=10057, byrow=T))
+rownames(drug_maccs_negative) <- drugs
+
+#adding variavle Inducer - 1 (if yes), 0 (if not)
+drug_maccs_positive$Inducer <- rep(1, nrow(drug_maccs_positive))
+
+drug_maccs_negative$Inducer <- rep(0, nrow(drug_maccs_negative))
+
+save(drug_maccs_positive, file = "drug_maccs_positive.Rdata")
+save(drug_maccs_negative, file = "drug_maccs_negative.Rdata")
+```
+
+## Logistic regression
+
+```{r}
+all_data <- rbind(drug_maccs_positive, drug_maccs_negative)
+
+#READ AND FIX!!!
+ctrl <- trainControl(method = "repeatedcv", number = 5, savePredictions = TRUE)
+
+mod_fit <- train(Inducer ~ .,  data=all_data, method="glm", family="binomial",
+                 trControl = ctrl, tuneLength = 5)
 ```
 
