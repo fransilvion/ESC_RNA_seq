@@ -34,6 +34,8 @@ suppressMessages(suppressWarnings(library(rlist)))
 suppressMessages(suppressWarnings(library(rcdk)))
 suppressMessages(suppressWarnings(library(webchem)))
 suppressMessages(suppressWarnings(library(caret)))
+suppressMessages(suppressWarnings(library(pROC)))
+suppressMessages(suppressWarnings(library(glmnet)))
 ```
 
 Let's build several machine learning models for SOX17 activation prediction based on small molecule chemical structure. We will consider this problem as a binary classification: 0 if SOX17 is not activated, 1 otherwise. Activation of SOX17 will be based on corresponding log fold change from LINCS expression data. 
@@ -195,24 +197,136 @@ drugs <- names(drug_maccs_negative)
 drug_maccs_negative <- data.frame(matrix(unlist(drug_maccs_negative), nrow=10057, byrow=T))
 rownames(drug_maccs_negative) <- drugs
 
-#adding variavle Inducer - 1 (if yes), 0 (if not)
-drug_maccs_positive$Inducer <- rep(1, nrow(drug_maccs_positive))
+#for correlation estimates
+test <- rbind(drug_maccs_positive, drug_maccs_negative)
+test_for_corr <- test[,colSums(test) > 0] #there are 7 bits in 166-vector that are all 0
+cormat <- round(cor(test_for_corr), 3)
+melted_cormat <- melt(cormat)
 
-drug_maccs_negative$Inducer <- rep(0, nrow(drug_maccs_negative))
+melted_cormat <- melt(cormat)
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()+
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+```
+
+```{r}
+#adding variavle Inducer - 1 (if yes), 0 (if not)
+drug_maccs_positive$Inducer <- rep("Yes", nrow(drug_maccs_positive))
+
+drug_maccs_negative$Inducer <- rep("No", nrow(drug_maccs_negative))
 
 save(drug_maccs_positive, file = "drug_maccs_positive.Rdata")
 save(drug_maccs_negative, file = "drug_maccs_negative.Rdata")
 ```
 
+Now we can try to perform actual machine learning algorithms for this problem. Note that we have an imbalanced class problem here (10:0.5). Thus we have to take this into account, this [link](https://www.r-bloggers.com/handling-class-imbalance-with-r-and-caret-an-introduction/) was used as a reference. We use class weights to handle class imbalance. 
+
 ## Logistic regression
 
+We start with weighted logistic regression:
 ```{r}
 all_data <- rbind(drug_maccs_positive, drug_maccs_negative)
+all_data$Inducer <- factor(all_data$Inducer)
 
-#READ AND FIX!!!
-ctrl <- trainControl(method = "repeatedcv", number = 5, savePredictions = TRUE)
+prop.table(table(all_data$Inducer)) #0 is not an inducer, 1 is an inducer (of SOX17 expression)
+```
 
-mod_fit <- train(Inducer ~ .,  data=all_data, method="glm", family="binomial",
-                 trControl = ctrl, tuneLength = 5)
+Using this [link](http://www.sthda.com/english/articles/36-classification-methods-essentials/149-penalized-logistic-regression-essentials-in-r-ridge-lasso-and-elastic-net/) as a reference.
+```{r}
+#splitting into train and test sets (using stratified shuffle split to retain class proportions)
+train.index <- createDataPartition(all_data$Inducer, p = 0.8, list = FALSE)
+train_data <- all_data[train.index,]
+test_data <- all_data[-train.index,]
+
+# Create model weights (they sum to one) - check in caret documentation!!
+model_weights <- ifelse(train_data$Inducer == 0,
+                        (1/table(train_data$Inducer)[1])*0.5,
+                        (1/table(train_data$Inducer)[2])*0.5)
+
+# Set up control function for training (stratified k-fold with repeats)
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 5,
+                     repeats = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+# Build weighted model (no regularizer)
+weighted_logistic_fit <- train(Inducer ~ .,
+                               data = train_data,
+                               method = "glm",
+                               weights = model_weights,
+                               metric = "ROC",
+                               trControl = ctrl)
+
+# Build model with lasso regularizer (alpha 1 stands for lasso; .5 for elastic net, 0 for ridge regression)
+tuneGrid=expand.grid(
+              .alpha=1,
+              .lambda=seq(0, 10, by = 0.1))
+
+
+weighted_logistic_fit_lasso <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "glmnet",
+                                     weights = model_weights,
+                                     family = "binomial",
+                                     tuneGrid = tuneGrid,
+                                     metric = "ROC",
+                                     trControl = ctrl)
+
+# Build model with elastic regularizer (alpha 1 stands for lasso; .5 for elastic net, 0 for ridge regression)
+tuneGrid=expand.grid(
+              .alpha=0.5,
+              .lambda=seq(0, 10, by = 0.1))
+
+
+weighted_logistic_fit_elastic <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "glmnet",
+                                     weights = model_weights,
+                                     family = "binomial",
+                                     tuneGrid = tuneGrid,
+                                     metric = "ROC",
+                                     trControl = ctrl)
+
+# Build model with ridge regularizer (alpha 1 stands for lasso; .5 for elastic net, 0 for ridge regression)
+tuneGrid=expand.grid(
+              .alpha=0,
+              .lambda=seq(0, 10, by = 0.1))
+
+
+weighted_logistic_fit_ridge <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "glmnet",
+                                     weights = model_weights,
+                                     family = "binomial",
+                                     tuneGrid = tuneGrid,
+                                     metric = "ROC",
+                                     trControl = ctrl)
+
+# Build custom AUC function to extract AUC
+# from the caret model object
+test_roc <- function(model, data) {
+  
+  pROC::roc(data$Inducer,
+      predict(model, data, type = "prob")[, "Yes"])
+
+}
+
+model_list <- list(original = weighted_logistic_fit,
+                   lasso = weighted_logistic_fit_lasso,
+                   elastic = weighted_logistic_fit_elastic,
+                   ridge = weighted_logistic_fit_ridge)
+
+
+model_list_roc <- model_list %>%
+  map(test_roc, data = test_data)
+
+model_list_roc %>%
+  map(pROC::auc)
+
+#weighted_logistic_fit_lasso %>%
+#  test_roc(data = test_data) %>%
+#  pROC::auc()
 ```
 
