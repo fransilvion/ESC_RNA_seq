@@ -415,25 +415,10 @@ plot(perf_val, col = "green", lwd = 2.5)
 ```{r}
 svm_Linear
 ```
-```{r}
-start.time <- Sys.time()
-
-#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
-
-svm_Linear2 <- train(Inducer ~., 
-                    data = train_data, 
-                    method = "svmLinear2",
-                    trControl=ctrl,
-                    metric = "ROC", scale=FALSE)
-
-end.time <- Sys.time()
-time.taken <- end.time - start.time
-time.taken
-```
-
 
 ```{r}
 #with Gausian kernel
+#runs almost 3 hours!!!
 start.time <- Sys.time()
 
 tuneGrid <- expand.grid(sigma = c(.01, .015, 0.2),
@@ -444,17 +429,35 @@ svm_Gaussian <- train(Inducer ~.,
                     method = "svmRadial",
                     trControl=ctrl,
                     metric = "ROC",
-                    tuneGrid = tuneGrid)
+                    tuneGrid = tuneGrid, scale = FALSE)
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
+
+save(svm_Gaussian, file = "svm_Gaussian.Rdata")
 ```
+
 ```{r}
-svm_Linear %>%
+svm_Gaussian
+```
+
+```{r}
+svm_Gaussian %>%
   test_roc(data = test_data) %>%
   pROC::auc()
 ```
+```{r}
+valid_pred <- predict(svm_Gaussian, test_data, type = "prob")
+
+pred_val <-prediction(valid_pred[,2], test_data$Inducer)
+
+#perf_val <- performance(pred_val, "auc") #0.81
+
+perf_val <- performance(pred_val, "tpr", "fpr")
+plot(perf_val, col = "green", lwd = 2.5)
+```
+
 ## Random Forest
 
 Try bagging for ensemble.
