@@ -36,6 +36,7 @@ suppressMessages(suppressWarnings(library(webchem)))
 suppressMessages(suppressWarnings(library(caret)))
 suppressMessages(suppressWarnings(library(pROC)))
 suppressMessages(suppressWarnings(library(glmnet)))
+suppressMessages(suppressWarnings(library(ROCR)))
 ```
 
 Let's build several machine learning models for SOX17 activation prediction based on small molecule chemical structure. We will consider this problem as a binary classification: 0 if SOX17 is not activated, 1 otherwise. Activation of SOX17 will be based on corresponding log fold change from LINCS expression data. 
@@ -240,7 +241,7 @@ train_data <- all_data[train.index,]
 test_data <- all_data[-train.index,]
 
 # Create model weights (they sum to one) - check in caret documentation!!
-model_weights <- ifelse(train_data$Inducer == 0,
+model_weights <- ifelse(train_data$Inducer == "No",
                         (1/table(train_data$Inducer)[1])*0.5,
                         (1/table(train_data$Inducer)[2])*0.5)
 
@@ -251,13 +252,13 @@ ctrl <- trainControl(method = "repeatedcv",
                      summaryFunction = twoClassSummary,
                      classProbs = TRUE)
 
-# Build weighted model (no regularizer)
-weighted_logistic_fit <- train(Inducer ~ .,
-                               data = train_data,
-                               method = "glm",
-                               weights = model_weights,
-                               metric = "ROC",
-                               trControl = ctrl)
+# Build weighted model (no regularizer) - gives ideal predictions
+#weighted_logistic_fit <- train(Inducer ~ .,
+#                               data = train_data,
+#                               method = "glm",
+#                               weights = model_weights,
+#                               metric = "ROC",
+#                               trControl = ctrl)
 
 # Build model with lasso regularizer (alpha 1 stands for lasso; .5 for elastic net, 0 for ridge regression)
 tuneGrid=expand.grid(
@@ -313,8 +314,7 @@ test_roc <- function(model, data) {
 
 }
 
-model_list <- list(original = weighted_logistic_fit,
-                   lasso = weighted_logistic_fit_lasso,
+model_list <- list(lasso = weighted_logistic_fit_lasso,
                    elastic = weighted_logistic_fit_elastic,
                    ridge = weighted_logistic_fit_ridge)
 
@@ -330,3 +330,135 @@ model_list_roc %>%
 #  pROC::auc()
 ```
 
+## K nearest neighbors
+
+Try to follow this [link](https://www.r-bloggers.com/k-nearest-neighbor-step-by-step-tutorial/) for now.
+```{r}
+#it takes 15 minutes to run, be careful (for tuneLength = 3 - k=5,7,9; for k=9 ROC is 0.77 with 0.99 sens, but 0.012 specific)
+#running with expand.grid(k = seq(8,20,by=2)) takes half an hour (31 min)
+start.time <- Sys.time()
+
+tuneGrid <- expand.grid(k = seq(8,20,by=2))
+
+knn_model_fit <- train(Inducer ~ .,
+                       data = train_data,
+                       method = "knn",
+                       #weights = model_weights,
+                       #family = "binomial",
+                       metric = "ROC",
+                       tuneGrid = tuneGrid, 
+                       trControl = ctrl)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+knn_model_fit
+```
+
+
+```{r}
+plot(knn_model_fit)
+```
+```{r}
+valid_pred <- predict(knn_model_fit, test_data, type = "prob")
+
+pred_val <-prediction(valid_pred[,2], test_data$Inducer)
+
+#perf_val <- performance(pred_val, "auc") #0.81
+
+perf_val <- performance(pred_val, "tpr", "fpr")
+plot(perf_val, col = "green", lwd = 2.5)
+```
+```{r}
+knn_model_fit %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+
+## Support Vector Machines
+
+(Try Gaussian kernel - radial basis function)
+We receive 'Cannot scale data' because some of the columns are all zeros, and that is why we don't do pre-processing: preProcess default - no pre-processing.  
+```{r}
+#takes 5 minutres
+start.time <- Sys.time()
+
+#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
+
+svm_Linear <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "svmLinear",
+                    trControl=ctrl,
+                    metric = "ROC", scale=FALSE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+svm_Linear %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+valid_pred <- predict(svm_Linear, test_data, type = "prob")
+
+pred_val <-prediction(valid_pred[,2], test_data$Inducer)
+
+#perf_val <- performance(pred_val, "auc") #0.81
+
+perf_val <- performance(pred_val, "tpr", "fpr")
+plot(perf_val, col = "green", lwd = 2.5)
+```
+```{r}
+svm_Linear
+```
+```{r}
+start.time <- Sys.time()
+
+#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
+
+svm_Linear2 <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "svmLinear2",
+                    trControl=ctrl,
+                    metric = "ROC", scale=FALSE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+
+
+```{r}
+#with Gausian kernel
+start.time <- Sys.time()
+
+tuneGrid <- expand.grid(sigma = c(.01, .015, 0.2),
+                        C = c(0.75, 0.9, 1, 1.1, 1.25))
+
+svm_Gaussian <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "svmRadial",
+                    trControl=ctrl,
+                    metric = "ROC",
+                    tuneGrid = tuneGrid)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+svm_Linear %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+## Random Forest
+
+Try bagging for ensemble.
+
+## Naive Bayes
+
+## Extra tree (ETs)??
