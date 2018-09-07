@@ -48,6 +48,8 @@ This is how distribution of SOX17 expression looks like:
 load("MCF7_gene_expression.Rdata")
 
 sox17_lfc <- rows_cols_gene_expression_mcf7["SOX17",]
+#for testing
+foxa2_lfc <- rows_cols_gene_expression_mcf7["FOXA2",]
 rm(rows_cols_gene_expression_mcf7)
 
 hist(sox17_lfc, breaks=50, main = "SOX17 logFC distribution",
@@ -60,6 +62,23 @@ Looks like a standard npormal distribution (it should be we log fold changes). W
 threshold <- quantile(sox17_lfc, c(.95))
 threshold
 ```
+
+Expression of SOX17 in interesting drugs from KEGG/Wiki analysis: 
+```{r}
+drugs <- c("taxifolin", "SA-1462738", "SA-1938111", "SA-1938219", "SA-247654", "SA-418993", "SA-85901", "SA-89705", "SA-1459008", "BRD-K20168484", "carbetocin", "linifanib", "mestanolone")
+
+sox17_lfc[drugs][sox17_lfc[drugs] > threshold]
+```
+
+Only 5 out of 13 molecules!
+
+The same for FOXA2:
+```{r}
+foxa2_lfc[drugs][foxa2_lfc[drugs] > quantile(foxa2_lfc, c(.95))] #1.007819 
+rm(foxa2_lfc)
+```
+Only 3 molecules are common between these two sets -> SA-1938111, SA-247654, mestanolone
+
 ```{r}
 #drugs that activate expression of SOX17 
 drugs_positive <- sox17_lfc[sox17_lfc >= threshold] #532 drugs
@@ -223,6 +242,8 @@ save(drug_maccs_negative, file = "drug_maccs_negative.Rdata")
 
 Now we can try to perform actual machine learning algorithms for this problem. Note that we have an imbalanced class problem here (10:0.5). Thus we have to take this into account, this [link](https://www.r-bloggers.com/handling-class-imbalance-with-r-and-caret-an-introduction/) was used as a reference. We use class weights to handle class imbalance. 
 
+For all machine learning models use tuneLength = 10!
+
 ## Logistic regression
 
 We start with weighted logistic regression:
@@ -235,10 +256,28 @@ prop.table(table(all_data$Inducer)) #0 is not an inducer, 1 is an inducer (of SO
 
 Using this [link](http://www.sthda.com/english/articles/36-classification-methods-essentials/149-penalized-logistic-regression-essentials-in-r-ridge-lasso-and-elastic-net/) as a reference.
 ```{r}
+#deleting columns with zeros everywhere
+x <- all_data$Inducer
+all_data <- all_data[,-167]
+all_data <- all_data[,colSums(all_data) > 0]
+all_data$Inducer <- x
+
 #splitting into train and test sets (using stratified shuffle split to retain class proportions)
 train.index <- createDataPartition(all_data$Inducer, p = 0.8, list = FALSE)
 train_data <- all_data[train.index,]
 test_data <- all_data[-train.index,]
+
+###########################################
+#FOR TESTING
+#x <- test_data$Inducer
+#test_data <- test_data[,-167]
+#test_data <- test_data[,colSums(test_data) > 0]
+#test_data$Inducer <- x
+#rm(x)
+#train.index <- createDataPartition(test_data$Inducer, p = 0.8, list = FALSE)
+#train_test <- test_data[train.index,]
+#test_test <- test_data[-train.index,]
+###########################################
 
 # Create model weights (they sum to one) - check in caret documentation!!
 model_weights <- ifelse(train_data$Inducer == "No",
@@ -261,9 +300,11 @@ ctrl <- trainControl(method = "repeatedcv",
 #                               trControl = ctrl)
 
 # Build model with lasso regularizer (alpha 1 stands for lasso; .5 for elastic net, 0 for ridge regression)
+set.seed(1492)
+
 tuneGrid=expand.grid(
               .alpha=1,
-              .lambda=seq(0, 10, by = 0.1))
+              .lambda=seq(0, 2, by = 0.1))
 
 
 weighted_logistic_fit_lasso <- train(Inducer ~ .,
@@ -272,13 +313,16 @@ weighted_logistic_fit_lasso <- train(Inducer ~ .,
                                      weights = model_weights,
                                      family = "binomial",
                                      tuneGrid = tuneGrid,
+                                     tuneLength=5,
                                      metric = "ROC",
                                      trControl = ctrl)
-
+save(weighted_logistic_fit_lasso, file="weighted_logistic_fit_lasso.Rdata")
 # Build model with elastic regularizer (alpha 1 stands for lasso; .5 for elastic net, 0 for ridge regression)
+set.seed(1492)
+
 tuneGrid=expand.grid(
               .alpha=0.5,
-              .lambda=seq(0, 10, by = 0.1))
+              .lambda=seq(0, 2, by = 0.1))
 
 
 weighted_logistic_fit_elastic <- train(Inducer ~ .,
@@ -287,10 +331,14 @@ weighted_logistic_fit_elastic <- train(Inducer ~ .,
                                      weights = model_weights,
                                      family = "binomial",
                                      tuneGrid = tuneGrid,
+                                     tuneLength=5,
                                      metric = "ROC",
                                      trControl = ctrl)
 
+save(weighted_logistic_fit_elastic, file="weighted_logistic_fit_elastic.Rdata")
 # Build model with ridge regularizer (alpha 1 stands for lasso; .5 for elastic net, 0 for ridge regression)
+set.seed(1492)
+
 tuneGrid=expand.grid(
               .alpha=0,
               .lambda=seq(0, 10, by = 0.1))
@@ -302,9 +350,11 @@ weighted_logistic_fit_ridge <- train(Inducer ~ .,
                                      weights = model_weights,
                                      family = "binomial",
                                      tuneGrid = tuneGrid,
+                                     tuneLength=5,
                                      metric = "ROC",
                                      trControl = ctrl)
 
+save(weighted_logistic_fit_ridge, file="weighted_logistic_fit_ridge.Rdata")
 # Build custom AUC function to extract AUC
 # from the caret model object
 test_roc <- function(model, data) {
@@ -329,6 +379,10 @@ model_list_roc %>%
 #  test_roc(data = test_data) %>%
 #  pROC::auc()
 ```
+```{r}
+rValues <- resamples(model_list)
+bwplot(rValues, metric="ROC")
+```
 
 ## K nearest neighbors
 
@@ -336,9 +390,11 @@ Try to follow this [link](https://www.r-bloggers.com/k-nearest-neighbor-step-by-
 ```{r}
 #it takes 15 minutes to run, be careful (for tuneLength = 3 - k=5,7,9; for k=9 ROC is 0.77 with 0.99 sens, but 0.012 specific)
 #running with expand.grid(k = seq(8,20,by=2)) takes half an hour (31 min)
+set.seed(1492)
+
 start.time <- Sys.time()
 
-tuneGrid <- expand.grid(k = seq(8,20,by=2))
+tuneGrid <- expand.grid(k = seq(8,26,by=2))
 
 knn_model_fit <- train(Inducer ~ .,
                        data = train_data,
@@ -347,14 +403,17 @@ knn_model_fit <- train(Inducer ~ .,
                        #family = "binomial",
                        metric = "ROC",
                        tuneGrid = tuneGrid, 
+                       #tuneLength=10,
                        trControl = ctrl)
+
+save(knn_model_fit, file="knn_model_fit.Rdata")
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
 ```
 ```{r}
-knn_model_fit
+knn_model_fit$results
 ```
 
 
@@ -376,12 +435,19 @@ knn_model_fit %>%
   test_roc(data = test_data) %>%
   pROC::auc()
 ```
+```{r}
+rValues <- resamples(list(ridge = weighted_logistic_fit_ridge,
+                          knn = knn_model_fit))
+bwplot(rValues, metric="ROC")
+```
+
 
 ## Support Vector Machines
 
 (Try Gaussian kernel - radial basis function)
 We receive 'Cannot scale data' because some of the columns are all zeros, and that is why we don't do pre-processing: preProcess default - no pre-processing.  
 ```{r}
+set.seed(1492)
 #takes 5 minutres
 start.time <- Sys.time()
 
@@ -391,8 +457,10 @@ svm_Linear <- train(Inducer ~.,
                     data = train_data, 
                     method = "svmLinear",
                     trControl=ctrl,
+                    #tuneLength = 9,
                     metric = "ROC", scale=FALSE)
 
+save(svm_Linear, file="svm_Linear.Rdata")
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
@@ -413,29 +481,33 @@ perf_val <- performance(pred_val, "tpr", "fpr")
 plot(perf_val, col = "green", lwd = 2.5)
 ```
 ```{r}
-svm_Linear
+
+rValues <- resamples(list(ridge = weighted_logistic_fit_ridge,
+                          knn = knn_model_fit,
+                          svm_linear = svm_Linear))
+bwplot(rValues, metric="ROC")
 ```
 
 ```{r}
 #with Gausian kernel
 #runs almost 3 hours!!!
+set.seed(1492)
 start.time <- Sys.time()
-
-tuneGrid <- expand.grid(sigma = c(.01, .015, 0.2),
-                        C = c(0.75, 0.9, 1, 1.1, 1.25))
 
 svm_Gaussian <- train(Inducer ~., 
                     data = train_data, 
                     method = "svmRadial",
                     trControl=ctrl,
                     metric = "ROC",
-                    tuneGrid = tuneGrid, scale = FALSE)
+                    #tuneGrid = tuneGrid,
+                    tuneLength = 10,
+                    scale = FALSE)
 
+save(svm_Gaussian, file="svm_Gaussian.Rdata")
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
 
-save(svm_Gaussian, file = "svm_Gaussian.Rdata")
 ```
 
 ```{r}
@@ -457,11 +529,469 @@ pred_val <-prediction(valid_pred[,2], test_data$Inducer)
 perf_val <- performance(pred_val, "tpr", "fpr")
 plot(perf_val, col = "green", lwd = 2.5)
 ```
+```{r}
+rValues <- resamples(list(ridge = weighted_logistic_fit_ridge,
+                          knn = knn_model_fit,
+                          svm_linear = svm_Linear,
+                          svm_gaussian = svm_Gaussian))
+bwplot(rValues, metric="ROC")
+```
 
 ## Random Forest
 
-Try bagging for ensemble.
+Just classic random forest:
+```{r}
+set.seed(1492)
+#it takes 1 hour to run
+start.time <- Sys.time()
 
-## Naive Bayes
+#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
 
-## Extra tree (ETs)??
+rf_fit <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "rf",
+                    trControl=ctrl,
+                    #weights = model_weights,
+                    tuneLength = 10,
+                    metric = "ROC",
+                    allowParallel=TRUE)
+
+save(rf_fit, file="rf_fit.Rdata")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+rf_fit %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+#mtry (#Randomly Selected Predictors)
+rf_fit$results
+```
+```{r}
+valid_pred <- predict(rf_fit, test_data, type = "prob")
+
+pred_val <-prediction(valid_pred[,2], test_data$Inducer)
+
+#perf_val <- performance(pred_val, "auc") #0.81
+
+perf_val <- performance(pred_val, "tpr", "fpr")
+plot(perf_val, col = "green", lwd = 2.5)
+```
+```{r}
+rValues <- resamples(list(ridge = weighted_logistic_fit_ridge,
+                          knn = knn_model_fit,
+                          svm_linear = svm_Linear,
+                          svm_gaussian = svm_Gaussian,
+                          rf = rf_fit))
+bwplot(rValues, metric="ROC")
+```
+
+Random forest with weights:
+```{r}
+set.seed(1492)
+#takes 33 minutes to run!
+start.time <- Sys.time()
+
+#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
+
+rf_weighted_fit <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "ranger",
+                    trControl=ctrl,
+                    tuneLength = 5,
+                    weights = model_weights,
+                    metric = "ROC")
+
+save(rf_weighted_fit, file="rf_weighted_fit.Rdata")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+rf_weighted_fit %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+#mtry (#Randomly Selected Predictors)
+rf_weighted_fit$results
+```
+```{r}
+valid_pred <- predict(rf_weighted_fit, test_data, type = "prob")
+
+pred_val <-prediction(valid_pred[,2], test_data$Inducer)
+
+#perf_val <- performance(pred_val, "auc") #0.81
+
+perf_val <- performance(pred_val, "tpr", "fpr")
+plot(perf_val, col = "green", lwd = 2.5)
+```
+
+
+## Stochastic Gradient boosting
+
+```{r}
+set.seed(1492)
+#takes two hours to run!
+start.time <- Sys.time()
+
+#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
+
+gbm_fit <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "gbm",
+                    trControl=ctrl,
+                    weights = model_weights,
+                    metric = "ROC",
+                    tuneLength = 5, verbose = FALSE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+save(gbm_fit, file="gbm_fit.Rdata")
+```
+
+```{r}
+gbm_fit %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+
+valid_pred <- predict(gbm_fit, test_data, type = "prob")
+
+pred_val <-prediction(valid_pred[,2], test_data$Inducer)
+
+#perf_val <- performance(pred_val, "auc") #0.81
+
+perf_val <- performance(pred_val, "tpr", "fpr")
+plot(perf_val, col = "green", lwd = 2.5)
+```
+```{r}
+rValues <- resamples(list(ridge = weighted_logistic_fit_ridge,
+                          knn = knn_model_fit,
+                          svm_linear = svm_Linear,
+                          svm_gaussian = svm_Gaussian,
+                          rf = rf_fit,
+                          rf_weighted = rf_weighted_fit,
+                          boosting = gbm_fit))
+bwplot(rValues, metric = "ROC")
+
+```
+
+# REFINING
+
+We will refine logistic regression with ridge and stochastic gradient boosting to see if we can increase the performance.
+
+## Logistic regression with ridge
+
+```{r}
+weighted_logistic_fit_ridge
+```
+The optimal lambda is 0.1. Let's play around this value a little bit:
+```{r}
+set.seed(1492)
+
+tuneGrid=expand.grid(
+              .alpha=0,
+              .lambda=seq(0.05, 0.2, by = 0.01))
+
+
+weighted_logistic_fit_ridge_tuned <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "glmnet",
+                                     weights = model_weights,
+                                     family = "binomial",
+                                     tuneGrid = tuneGrid,
+                                     tuneLength=5,
+                                     metric = "ROC",
+                                     trControl = ctrl)
+
+weighted_logistic_fit_ridge_tuned
+```
+
+it's tiny improvement in ~0.0001
+```{r}
+weighted_logistic_fit_ridge_tuned %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+
+## Gradient boosting
+
+Now let's focus on improving stochastic gradient boosting (gbm):
+```{r}
+gbm_fit
+```
+
+Let's tune this a little bit:
+```{r}
+set.seed(1492)
+#takes two hours to run!
+start.time <- Sys.time()
+
+#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
+tuneGrid <- expand.grid(n.trees = seq(40,100,by=10),
+                        interaction.depth = c(3,4,5),
+                        shrinkage = 0.1,
+                        n.minobsinnode = 10)
+
+gbm_fit_tuned <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "gbm",
+                    trControl=ctrl,
+                    weights = model_weights,
+                    metric = "ROC",
+                    tuneGrid = tuneGrid,
+                    #tuneLength = 5, 
+                    verbose = FALSE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+```
+```{r}
+gbm_fit_tuned
+```
+```{r}
+gbm_fit_tuned %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+
+# Accuracy metric
+
+Since improvement is not so big, we will focus on three best methods so far: logistic regression with ridge, stochastic gradient boosting, random forest. And check the accuracy metric:
+
+## Logistic regression with ridge
+
+```{r}
+set.seed(1492)
+
+tuneGrid=expand.grid(
+              .alpha=0,
+              .lambda=0.1) #the optimal
+
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 5,
+                     repeats = 5)
+
+weighted_logistic_fit_ridge_accuracy <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "glmnet",
+                                     weights = model_weights,
+                                     family = "binomial",
+                                     tuneGrid = tuneGrid,
+                                     tuneLength=5,
+                                     metric = "Accuracy",
+                                     trControl = ctrl)
+
+save(weighted_logistic_fit_ridge_accuracy, file="weighted_logistic_fit_ridge_accuracy.Rdata")
+
+weighted_logistic_fit_ridge_accuracy
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(weighted_logistic_fit_ridge_accuracy, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+Accuracy is 0.752
+```{r}
+accuracy <- table(predictions, y_test)
+sum(diag(accuracy))/sum(accuracy)
+```
+
+## Random forest
+
+```{r}
+set.seed(1492)
+#takes 33 minutes to run!
+start.time <- Sys.time()
+
+tuneGrid=expand.grid(
+              mtry=2,
+              splitrule='extratrees',
+              min.node.size=1) #the optimal
+
+
+rf_weighted_fit_accuracy <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "ranger",
+                    trControl=ctrl,
+                    tuneGrid = tuneGrid,
+                    weights = model_weights,
+                    metric = "Accuracy")
+
+save(rf_weighted_fit_accuracy, file="rf_weighted_fit_accuracy.Rdata")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+rf_weighted_fit_accuracy
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(rf_weighted_fit_accuracy, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+
+## Stochastic gradient boosting
+
+```{r}
+set.seed(1492)
+#takes two hours to run!
+start.time <- Sys.time()
+
+tuneGrid <- expand.grid(n.trees = 50,
+                        interaction.depth = 4,
+                        shrinkage = 0.1,
+                        n.minobsinnode = 10)
+
+gbm_fit_accuracy <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "gbm",
+                    trControl=ctrl,
+                    weights = model_weights,
+                    metric = "Accuracy",
+                    tuneGrid = tuneGrid, 
+                    verbose = FALSE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+save(gbm_fit_accuracy, file="gbm_fit_accuracy.Rdata")
+gbm_fit_accuracy
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(gbm_fit_accuracy, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+```{r}
+rValues <- resamples(list(ridge = weighted_logistic_fit_ridge_accuracy,
+                          rf_weighted = rf_weighted_fit_accuracy,
+                          boosting = gbm_fit_accuracy))
+bwplot(rValues, metric="Accuracy")
+```
+
+Let's calculate accuracy for other classifiers (knn, svm) to show their accuracy
+
+## KNN
+
+```{r}
+set.seed(1492)
+
+start.time <- Sys.time()
+
+tuneGrid <- expand.grid(k = 26)
+
+knn_model_fit_accuracy <- train(Inducer ~ .,
+                       data = train_data,
+                       method = "knn",
+                       #weights = model_weights,
+                       #family = "binomial",
+                       metric = "Accuracy",
+                       tuneGrid = tuneGrid, 
+                       #tuneLength=10,
+                       trControl = ctrl)
+
+save(knn_model_fit_accuracy, file="knn_model_fit_accuracy.Rdata")
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+knn_model_fit_accuracy
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(knn_model_fit_accuracy, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+
+## SVM linear
+
+```{r}
+set.seed(1492)
+#takes 5 minutres
+start.time <- Sys.time()
+
+tuneGrid <- expand.grid(C = 1)
+
+svm_Linear_accuracy <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "svmLinear",
+                    trControl=ctrl,
+                    #tuneLength = 9,
+                    metric = "Accuracy", 
+                    scale=FALSE)
+
+save(svm_Linear_accuracy, file="svm_Linear_accuracy.Rdata")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+svm_Linear_accuracy
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(svm_Linear_accuracy, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+
+## SVM Gaussian 
+
+```{r}
+#with Gausian kernel
+#runs almost 3 hours!!!
+set.seed(1492)
+start.time <- Sys.time()
+
+tuneGrid <- expand.grid(sigma = 0.0045,
+                        C = 128)
+
+svm_Gaussian_accuracy <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "svmRadial",
+                    trControl=ctrl,
+                    metric = "Accuracy",
+                    tuneGrid = tuneGrid,
+                    #tuneLength = 10,
+                    scale = FALSE)
+
+save(svm_Gaussian_accuracy, file="svm_Gaussian_accuracy.Rdata")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+svm_Gaussian_accuracy
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(svm_Gaussian_accuracy, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
