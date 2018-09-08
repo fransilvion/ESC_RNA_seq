@@ -37,6 +37,7 @@ suppressMessages(suppressWarnings(library(caret)))
 suppressMessages(suppressWarnings(library(pROC)))
 suppressMessages(suppressWarnings(library(glmnet)))
 suppressMessages(suppressWarnings(library(ROCR)))
+suppressMessages(suppressWarnings(library(logisticPCA)))
 ```
 
 Let's build several machine learning models for SOX17 activation prediction based on small molecule chemical structure. We will consider this problem as a binary classification: 0 if SOX17 is not activated, 1 otherwise. Activation of SOX17 will be based on corresponding log fold change from LINCS expression data. 
@@ -253,6 +254,33 @@ all_data$Inducer <- factor(all_data$Inducer)
 
 prop.table(table(all_data$Inducer)) #0 is not an inducer, 1 is an inducer (of SOX17 expression)
 ```
+
+Performing logistic PCA:
+```{r}
+Inducer <- all_data$Inducer
+for_pca <- all_data[,-167]
+logsvd_model <- logisticSVD(for_pca, k = 2)
+logsvd_model
+```
+```{r}
+logpca_cv = cv.lpca(for_pca, ks = 2, ms = 1:10)
+save(logpca_cv, file = "logpca_cv.Rdata")
+plot(logpca_cv)
+```
+```{r}
+logpca_model = logisticPCA(for_pca, k = 2, m = which.min(logpca_cv))
+
+for_pca_cleaned <- for_pca[, colSums(for_pca) > 0]
+clogpca_model = convexLogisticPCA(for_pca_cleaned, k = 2, m = which.min(logpca_cv))
+
+plot(logpca_model, type = "scores") + geom_point(aes(colour = Inducer, size = Inducer, alpha = Inducer)) + 
+  ggtitle("Logistic PCA") + scale_colour_manual(values = c("blue", "red"))
+```
+```{r}
+plot(clogpca_model, type = "scores") + geom_point(aes(colour = Inducer, size = Inducer, alpha = Inducer)) + 
+  ggtitle("Convex Logistic PCA") + scale_colour_manual(values = c("blue", "red"))
+```
+
 
 Using this [link](http://www.sthda.com/english/articles/36-classification-methods-essentials/149-penalized-logistic-regression-essentials-in-r-ridge-lasso-and-elastic-net/) as a reference.
 ```{r}
