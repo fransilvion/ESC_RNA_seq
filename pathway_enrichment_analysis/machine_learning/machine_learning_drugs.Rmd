@@ -268,6 +268,12 @@ save(logpca_cv, file = "logpca_cv.Rdata")
 plot(logpca_cv)
 ```
 ```{r}
+plot(logsvd_model, type = "scores") + geom_point(aes(colour = Inducer, size = Inducer, alpha = Inducer)) + 
+  ggtitle("Exponential Family PCA") + scale_colour_manual(values = c("blue", "red"))
+```
+
+
+```{r}
 logpca_model = logisticPCA(for_pca, k = 2, m = which.min(logpca_cv))
 
 for_pca_cleaned <- for_pca[, colSums(for_pca) > 0]
