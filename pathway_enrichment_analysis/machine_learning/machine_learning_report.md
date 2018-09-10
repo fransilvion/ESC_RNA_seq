@@ -395,13 +395,13 @@ model_list_roc %>%
 ```
 
     ## $lasso
-    ## Area under the curve: 0.8766
+    ## Area under the curve: 0.8772
     ## 
     ## $elastic
-    ## Area under the curve: 0.8643
+    ## Area under the curve: 0.8657
     ## 
     ## $ridge
-    ## Area under the curve: 0.8739
+    ## Area under the curve: 0.8768
 
 These ROC values for predictions. We see that AUC is the biggest for model with ridge regularizer (0.8863), however, they are close.
 
@@ -464,27 +464,27 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  1508   18
-    ##        Yes  503   88
-    ##                                          
-    ##                Accuracy : 0.7539         
-    ##                  95% CI : (0.735, 0.7721)
-    ##     No Information Rate : 0.9499         
-    ##     P-Value [Acc > NIR] : 1              
-    ##                                          
-    ##                   Kappa : 0.1832         
-    ##  Mcnemar's Test P-Value : <2e-16         
-    ##                                          
-    ##             Sensitivity : 0.7499         
-    ##             Specificity : 0.8302         
-    ##          Pos Pred Value : 0.9882         
-    ##          Neg Pred Value : 0.1489         
-    ##              Prevalence : 0.9499         
-    ##          Detection Rate : 0.7123         
-    ##    Detection Prevalence : 0.7208         
-    ##       Balanced Accuracy : 0.7900         
-    ##                                          
-    ##        'Positive' Class : No             
+    ##        No  1524   17
+    ##        Yes  487   89
+    ##                                           
+    ##                Accuracy : 0.7619          
+    ##                  95% CI : (0.7432, 0.7799)
+    ##     No Information Rate : 0.9499          
+    ##     P-Value [Acc > NIR] : 1               
+    ##                                           
+    ##                   Kappa : 0.1927          
+    ##  Mcnemar's Test P-Value : <2e-16          
+    ##                                           
+    ##             Sensitivity : 0.7578          
+    ##             Specificity : 0.8396          
+    ##          Pos Pred Value : 0.9890          
+    ##          Neg Pred Value : 0.1545          
+    ##              Prevalence : 0.9499          
+    ##          Detection Rate : 0.7199          
+    ##    Detection Prevalence : 0.7279          
+    ##       Balanced Accuracy : 0.7987          
+    ##                                           
+    ##        'Positive' Class : No              
     ## 
 
 However, accuracy for ridge regression is ~75%. Sensitivity and Specificity are 0.7429 and 0.8302 respectively. Note that we have a lot of false positives.
@@ -519,7 +519,7 @@ knn_model_fit %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.8943
+    ## Area under the curve: 0.8748
 
 ``` r
 # make predictions
@@ -582,7 +582,7 @@ svm_Linear %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.7595
+    ## Area under the curve: 0.7646
 
 ``` r
 # make predictions
@@ -642,7 +642,7 @@ svm_Gaussian %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.8926
+    ## Area under the curve: 0.8815
 
 ``` r
 # make predictions
@@ -657,27 +657,27 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  2011  103
-    ##        Yes    0    3
-    ##                                           
-    ##                Accuracy : 0.9513          
-    ##                  95% CI : (0.9413, 0.9601)
-    ##     No Information Rate : 0.9499          
-    ##     P-Value [Acc > NIR] : 0.4071          
-    ##                                           
-    ##                   Kappa : 0.0524          
-    ##  Mcnemar's Test P-Value : <2e-16          
-    ##                                           
-    ##             Sensitivity : 1.0000          
-    ##             Specificity : 0.0283          
-    ##          Pos Pred Value : 0.9513          
-    ##          Neg Pred Value : 1.0000          
-    ##              Prevalence : 0.9499          
-    ##          Detection Rate : 0.9499          
-    ##    Detection Prevalence : 0.9986          
-    ##       Balanced Accuracy : 0.5142          
-    ##                                           
-    ##        'Positive' Class : No              
+    ##        No  2011  101
+    ##        Yes    0    5
+    ##                                          
+    ##                Accuracy : 0.9523         
+    ##                  95% CI : (0.9423, 0.961)
+    ##     No Information Rate : 0.9499         
+    ##     P-Value [Acc > NIR] : 0.3313         
+    ##                                          
+    ##                   Kappa : 0.086          
+    ##  Mcnemar's Test P-Value : <2e-16         
+    ##                                          
+    ##             Sensitivity : 1.00000        
+    ##             Specificity : 0.04717        
+    ##          Pos Pred Value : 0.95218        
+    ##          Neg Pred Value : 1.00000        
+    ##              Prevalence : 0.94993        
+    ##          Detection Rate : 0.94993        
+    ##    Detection Prevalence : 0.99764        
+    ##       Balanced Accuracy : 0.52358        
+    ##                                          
+    ##        'Positive' Class : No             
     ## 
 
 Again not specific at all.
@@ -704,7 +704,7 @@ rf_weighted_fit %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.9137
+    ## Area under the curve: 0.9109
 
 ``` r
 # make predictions
@@ -719,27 +719,27 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  1490    9
-    ##        Yes  521   97
-    ##                                          
-    ##                Accuracy : 0.7496         
-    ##                  95% CI : (0.7306, 0.768)
-    ##     No Information Rate : 0.9499         
-    ##     P-Value [Acc > NIR] : 1              
-    ##                                          
-    ##                   Kappa : 0.1995         
-    ##  Mcnemar's Test P-Value : <2e-16         
-    ##                                          
-    ##             Sensitivity : 0.7409         
-    ##             Specificity : 0.9151         
-    ##          Pos Pred Value : 0.9940         
-    ##          Neg Pred Value : 0.1570         
-    ##              Prevalence : 0.9499         
-    ##          Detection Rate : 0.7038         
-    ##    Detection Prevalence : 0.7081         
-    ##       Balanced Accuracy : 0.8280         
-    ##                                          
-    ##        'Positive' Class : No             
+    ##        No  1488    6
+    ##        Yes  523  100
+    ##                                           
+    ##                Accuracy : 0.7501          
+    ##                  95% CI : (0.7311, 0.7684)
+    ##     No Information Rate : 0.9499          
+    ##     P-Value [Acc > NIR] : 1               
+    ##                                           
+    ##                   Kappa : 0.2064          
+    ##  Mcnemar's Test P-Value : <2e-16          
+    ##                                           
+    ##             Sensitivity : 0.7399          
+    ##             Specificity : 0.9434          
+    ##          Pos Pred Value : 0.9960          
+    ##          Neg Pred Value : 0.1605          
+    ##              Prevalence : 0.9499          
+    ##          Detection Rate : 0.7029          
+    ##    Detection Prevalence : 0.7057          
+    ##       Balanced Accuracy : 0.8417          
+    ##                                           
+    ##        'Positive' Class : No              
     ## 
 
 We see now that this model is much more specific, however we still make a lot of false positives (but almost all inducers are predicted).
@@ -765,7 +765,7 @@ gbm_fit %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.8795
+    ## Area under the curve: 0.8853
 
 ``` r
 # make predictions
@@ -780,27 +780,27 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  1567   16
-    ##        Yes  444   90
-    ##                                           
-    ##                Accuracy : 0.7827          
-    ##                  95% CI : (0.7645, 0.8001)
-    ##     No Information Rate : 0.9499          
-    ##     P-Value [Acc > NIR] : 1               
-    ##                                           
-    ##                   Kappa : 0.2157          
-    ##  Mcnemar's Test P-Value : <2e-16          
-    ##                                           
-    ##             Sensitivity : 0.7792          
-    ##             Specificity : 0.8491          
-    ##          Pos Pred Value : 0.9899          
-    ##          Neg Pred Value : 0.1685          
-    ##              Prevalence : 0.9499          
-    ##          Detection Rate : 0.7402          
-    ##    Detection Prevalence : 0.7478          
-    ##       Balanced Accuracy : 0.8141          
-    ##                                           
-    ##        'Positive' Class : No              
+    ##        No  1559   17
+    ##        Yes  452   89
+    ##                                          
+    ##                Accuracy : 0.7785         
+    ##                  95% CI : (0.7602, 0.796)
+    ##     No Information Rate : 0.9499         
+    ##     P-Value [Acc > NIR] : 1              
+    ##                                          
+    ##                   Kappa : 0.2089         
+    ##  Mcnemar's Test P-Value : <2e-16         
+    ##                                          
+    ##             Sensitivity : 0.7752         
+    ##             Specificity : 0.8396         
+    ##          Pos Pred Value : 0.9892         
+    ##          Neg Pred Value : 0.1645         
+    ##              Prevalence : 0.9499         
+    ##          Detection Rate : 0.7364         
+    ##    Detection Prevalence : 0.7444         
+    ##       Balanced Accuracy : 0.8074         
+    ##                                          
+    ##        'Positive' Class : No             
     ## 
 
 We see that this model is more sensitive, more accurate, but less specific (it makes slightly less false positive predictions than random forest).
@@ -864,7 +864,7 @@ plot(perf_val_rf, col = "chocolate", lwd = 3.5)
 par(new=T)
 plot(perf_val_gbm, col = "brown", lwd = 3.5)
 par(new=T)
-plot(perf_val_knn, col = "coral3", lwd = 3.5)
+plot(perf_val_knn, col = "pink", lwd = 3.5)
 par(new=T)
 plot(perf_val_svm_gaussian, col = "aquamarine", lwd = 3.5)
 par(new=T)
@@ -872,8 +872,8 @@ plot(perf_val_svm_linear, col = "darkblue", lwd = 3.5)
 par(new=T)
 lines(x = c(0,1), y = c(0,1))
 legend(x= "topright", y=0.92, legend=c("Ridge", "Random Forest", "Gradient Boosting", "KNN",
-                                       "SVM_Linear", "SVM_Gaussian"),
-       col=c("red", "chocolate", "brown", "coral3", "aquamarine", "darkblue"), lty=1, cex=0.8)
+                                       "SVM_Gaussian", "SVM_Linear"),
+       col=c("red", "chocolate", "brown", "pink", "aquamarine", "darkblue"), lty=1, cex=0.8)
 ```
 
 ![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-37-1.png)
