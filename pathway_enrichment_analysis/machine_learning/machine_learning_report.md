@@ -298,9 +298,16 @@ all_data <- all_data[,colSums(all_data) > 0]
 all_data$Inducer <- x
 
 #splitting into train and test sets (using stratified shuffle split to retain class proportions)
-train.index <- createDataPartition(all_data$Inducer, p = 0.8, list = FALSE)
-train_data <- all_data[train.index,]
-test_data <- all_data[-train.index,]
+#it was a random split
+#set.seed(1492)
+#train.index <- createDataPartition(all_data$Inducer, p = 0.8, list = FALSE)
+#train_data <- all_data[train.index,]
+#test_data <- all_data[-train.index,]
+#save(train_data, file = "train_data.Rdata")
+#save(test_data, file = "test_data.Rdata")
+
+load("train_data.Rdata")
+load("test_data.Rdata")
 
 # Create model weights (they sum to one) 
 model_weights <- ifelse(train_data$Inducer == "No",
@@ -380,7 +387,7 @@ load("weighted_logistic_fit_elastic.Rdata")
 #                                     metric = "ROC",
 #                                     trControl = ctrl)
 load("weighted_logistic_fit_ridge.Rdata")
-load("weighted_logistic_fit_ridge_accuracy.Rdata")
+#load("weighted_logistic_fit_ridge_accuracy.Rdata")
 
 model_list <- list(lasso = weighted_logistic_fit_lasso,
                    elastic = weighted_logistic_fit_elastic,
@@ -395,15 +402,19 @@ model_list_roc %>%
 ```
 
     ## $lasso
-    ## Area under the curve: 0.8772
+    ## Area under the curve: 0.8069
     ## 
     ## $elastic
-    ## Area under the curve: 0.8657
+    ## Area under the curve: 0.8261
     ## 
     ## $ridge
-    ## Area under the curve: 0.8768
+    ## Area under the curve: 0.821
 
-These ROC values for predictions. We see that AUC is the biggest for model with ridge regularizer (0.8863), however, they are close.
+``` r
+#results for test data
+```
+
+These ROC values for test predictions. We see that AUC is the biggest for model with elastic regularizer (0.8863), however, they are close.
 
 ``` r
 valid_pred_ridge <- predict(weighted_logistic_fit_ridge, test_data, type = "prob")
@@ -433,7 +444,7 @@ legend(x= "topright", y=0.92, legend=c("Ridge", "Lasso", "Elastic"),
 
 ![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-21-1.png)
 
-ROC values for different regularizers:
+ROC values for different regularizers (for cross-validation):
 
 ``` r
 rValues <- resamples(model_list)
@@ -442,7 +453,7 @@ bwplot(rValues, metric="ROC")
 
 ![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-22-1.png)
 
-Sensitivity and specificity for different regularizers:
+Sensitivity and specificity for different regularizers (across cross-validation):
 
 ``` r
 rValues <- resamples(model_list)
@@ -455,7 +466,7 @@ bwplot(rValues, metric=c("Spec", "Sens"))
 # make predictions
 x_test <- test_data[,1:159]
 y_test <- test_data$Inducer
-predictions <- predict(weighted_logistic_fit_ridge_accuracy, x_test)
+predictions <- predict(weighted_logistic_fit_elastic, x_test)
 # summarize results
 confusionMatrix(predictions, y_test)
 ```
@@ -464,30 +475,30 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  1524   17
-    ##        Yes  487   89
+    ##        No  1619   36
+    ##        Yes  392   70
     ##                                           
-    ##                Accuracy : 0.7619          
-    ##                  95% CI : (0.7432, 0.7799)
+    ##                Accuracy : 0.7978          
+    ##                  95% CI : (0.7801, 0.8147)
     ##     No Information Rate : 0.9499          
     ##     P-Value [Acc > NIR] : 1               
     ##                                           
-    ##                   Kappa : 0.1927          
+    ##                   Kappa : 0.1797          
     ##  Mcnemar's Test P-Value : <2e-16          
     ##                                           
-    ##             Sensitivity : 0.7578          
-    ##             Specificity : 0.8396          
-    ##          Pos Pred Value : 0.9890          
-    ##          Neg Pred Value : 0.1545          
+    ##             Sensitivity : 0.8051          
+    ##             Specificity : 0.6604          
+    ##          Pos Pred Value : 0.9782          
+    ##          Neg Pred Value : 0.1515          
     ##              Prevalence : 0.9499          
-    ##          Detection Rate : 0.7199          
-    ##    Detection Prevalence : 0.7279          
-    ##       Balanced Accuracy : 0.7987          
+    ##          Detection Rate : 0.7648          
+    ##    Detection Prevalence : 0.7818          
+    ##       Balanced Accuracy : 0.7327          
     ##                                           
     ##        'Positive' Class : No              
     ## 
 
-However, accuracy for ridge regression is ~75%. Sensitivity and Specificity are 0.7429 and 0.8302 respectively. Note that we have a lot of false positives.
+However, accuracy for elastic regression is ~79%. Sensitivity and Specificity are 0.7429 and 0.8302 respectively. Note that we have a lot of false positives. Precision (tp/(tp+fp)) is 15.15%. If we use prob threshold 0.6 it increases to 18%. With 0.7 threshold it's 22.31%.
 
 K nearest neighbours
 --------------------
@@ -519,7 +530,7 @@ knn_model_fit %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.8748
+    ## Area under the curve: 0.871
 
 ``` r
 # make predictions
@@ -582,7 +593,7 @@ svm_Linear %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.7646
+    ## Area under the curve: 0.7404
 
 ``` r
 # make predictions
@@ -642,7 +653,7 @@ svm_Gaussian %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.8815
+    ## Area under the curve: 0.8808
 
 ``` r
 # make predictions
@@ -657,27 +668,27 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  2011  101
-    ##        Yes    0    5
-    ##                                          
-    ##                Accuracy : 0.9523         
-    ##                  95% CI : (0.9423, 0.961)
-    ##     No Information Rate : 0.9499         
-    ##     P-Value [Acc > NIR] : 0.3313         
-    ##                                          
-    ##                   Kappa : 0.086          
-    ##  Mcnemar's Test P-Value : <2e-16         
-    ##                                          
-    ##             Sensitivity : 1.00000        
-    ##             Specificity : 0.04717        
-    ##          Pos Pred Value : 0.95218        
-    ##          Neg Pred Value : 1.00000        
-    ##              Prevalence : 0.94993        
-    ##          Detection Rate : 0.94993        
-    ##    Detection Prevalence : 0.99764        
-    ##       Balanced Accuracy : 0.52358        
-    ##                                          
-    ##        'Positive' Class : No             
+    ##        No  2010  103
+    ##        Yes    1    3
+    ##                                           
+    ##                Accuracy : 0.9509          
+    ##                  95% CI : (0.9408, 0.9597)
+    ##     No Information Rate : 0.9499          
+    ##     P-Value [Acc > NIR] : 0.4464          
+    ##                                           
+    ##                   Kappa : 0.0511          
+    ##  Mcnemar's Test P-Value : <2e-16          
+    ##                                           
+    ##             Sensitivity : 0.9995          
+    ##             Specificity : 0.0283          
+    ##          Pos Pred Value : 0.9513          
+    ##          Neg Pred Value : 0.7500          
+    ##              Prevalence : 0.9499          
+    ##          Detection Rate : 0.9495          
+    ##    Detection Prevalence : 0.9981          
+    ##       Balanced Accuracy : 0.5139          
+    ##                                           
+    ##        'Positive' Class : No              
     ## 
 
 Again not specific at all.
@@ -704,13 +715,13 @@ rf_weighted_fit %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.9109
+    ## Area under the curve: 0.834
 
 ``` r
 # make predictions
 x_test <- test_data[,1:159]
 y_test <- test_data$Inducer
-predictions <- predict(rf_weighted_fit_accuracy, x_test)
+predictions <- predict(rf_weighted_fit, x_test)
 # summarize results
 confusionMatrix(predictions, y_test)
 ```
@@ -719,30 +730,30 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  1488    6
-    ##        Yes  523  100
+    ##        No  1544   22
+    ##        Yes  467   84
     ##                                           
-    ##                Accuracy : 0.7501          
-    ##                  95% CI : (0.7311, 0.7684)
+    ##                Accuracy : 0.769           
+    ##                  95% CI : (0.7505, 0.7868)
     ##     No Information Rate : 0.9499          
     ##     P-Value [Acc > NIR] : 1               
     ##                                           
-    ##                   Kappa : 0.2064          
+    ##                   Kappa : 0.1875          
     ##  Mcnemar's Test P-Value : <2e-16          
     ##                                           
-    ##             Sensitivity : 0.7399          
-    ##             Specificity : 0.9434          
-    ##          Pos Pred Value : 0.9960          
-    ##          Neg Pred Value : 0.1605          
+    ##             Sensitivity : 0.7678          
+    ##             Specificity : 0.7925          
+    ##          Pos Pred Value : 0.9860          
+    ##          Neg Pred Value : 0.1525          
     ##              Prevalence : 0.9499          
-    ##          Detection Rate : 0.7029          
-    ##    Detection Prevalence : 0.7057          
-    ##       Balanced Accuracy : 0.8417          
+    ##          Detection Rate : 0.7293          
+    ##    Detection Prevalence : 0.7397          
+    ##       Balanced Accuracy : 0.7801          
     ##                                           
     ##        'Positive' Class : No              
     ## 
 
-We see now that this model is much more specific, however we still make a lot of false positives (but almost all inducers are predicted).
+We still make a lot of false positives. Precision is 15.24%. With 0.6 threshold we have 18.49% precision. With 0.7 - precision is 21.7%.
 
 Stochastic Gradient boosting
 ----------------------------
@@ -765,13 +776,13 @@ gbm_fit %>%
   pROC::auc()
 ```
 
-    ## Area under the curve: 0.8853
+    ## Area under the curve: 0.8414
 
 ``` r
 # make predictions
 x_test <- test_data[,1:159]
 y_test <- test_data$Inducer
-predictions <- predict(gbm_fit_accuracy, x_test)
+predictions <- predict(gbm_fit, x_test)
 # summarize results
 confusionMatrix(predictions, y_test)
 ```
@@ -780,30 +791,92 @@ confusionMatrix(predictions, y_test)
     ## 
     ##           Reference
     ## Prediction   No  Yes
-    ##        No  1559   17
-    ##        Yes  452   89
-    ##                                          
-    ##                Accuracy : 0.7785         
-    ##                  95% CI : (0.7602, 0.796)
-    ##     No Information Rate : 0.9499         
-    ##     P-Value [Acc > NIR] : 1              
-    ##                                          
-    ##                   Kappa : 0.2089         
-    ##  Mcnemar's Test P-Value : <2e-16         
-    ##                                          
-    ##             Sensitivity : 0.7752         
-    ##             Specificity : 0.8396         
-    ##          Pos Pred Value : 0.9892         
-    ##          Neg Pred Value : 0.1645         
-    ##              Prevalence : 0.9499         
-    ##          Detection Rate : 0.7364         
-    ##    Detection Prevalence : 0.7444         
-    ##       Balanced Accuracy : 0.8074         
-    ##                                          
-    ##        'Positive' Class : No             
+    ##        No  1555   24
+    ##        Yes  456   82
+    ##                                           
+    ##                Accuracy : 0.7733          
+    ##                  95% CI : (0.7548, 0.7909)
+    ##     No Information Rate : 0.9499          
+    ##     P-Value [Acc > NIR] : 1               
+    ##                                           
+    ##                   Kappa : 0.1866          
+    ##  Mcnemar's Test P-Value : <2e-16          
+    ##                                           
+    ##             Sensitivity : 0.7732          
+    ##             Specificity : 0.7736          
+    ##          Pos Pred Value : 0.9848          
+    ##          Neg Pred Value : 0.1524          
+    ##              Prevalence : 0.9499          
+    ##          Detection Rate : 0.7345          
+    ##    Detection Prevalence : 0.7459          
+    ##       Balanced Accuracy : 0.7734          
+    ##                                           
+    ##        'Positive' Class : No              
     ## 
 
-We see that this model is more sensitive, more accurate, but less specific (it makes slightly less false positive predictions than random forest).
+This model is more accurate than random forest. Precision is 15.24% (0.5 threshold). With 0.6 precision is 16.74. And 21.05% with 0.7.
+
+Neural net
+----------
+
+``` r
+#This code was used to build the model
+#weighted_nnet <- train(Inducer ~ .,
+#                                     data = train_data,
+#                                     method = "nnet",
+#                                     weights = model_weights,
+#                                     #family = "binomial",
+#                                     #tuneGrid = nnetGrid,
+#                                     tuneLength=5,
+#                                     metric = "ROC",
+#                                     trControl = ctrl, verbose = FALSE, MaxNWts = 2500)
+
+load("weighted_nnet.Rdata")
+
+weighted_nnet %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+
+    ## Area under the curve: 0.8207
+
+``` r
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(weighted_nnet, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+
+    ## Confusion Matrix and Statistics
+    ## 
+    ##           Reference
+    ## Prediction   No  Yes
+    ##        No  1521   24
+    ##        Yes  490   82
+    ##                                           
+    ##                Accuracy : 0.7572          
+    ##                  95% CI : (0.7384, 0.7753)
+    ##     No Information Rate : 0.9499          
+    ##     P-Value [Acc > NIR] : 1               
+    ##                                           
+    ##                   Kappa : 0.1719          
+    ##  Mcnemar's Test P-Value : <2e-16          
+    ##                                           
+    ##             Sensitivity : 0.7563          
+    ##             Specificity : 0.7736          
+    ##          Pos Pred Value : 0.9845          
+    ##          Neg Pred Value : 0.1434          
+    ##              Prevalence : 0.9499          
+    ##          Detection Rate : 0.7185          
+    ##    Detection Prevalence : 0.7298          
+    ##       Balanced Accuracy : 0.7650          
+    ##                                           
+    ##        'Positive' Class : No              
+    ## 
+
+Here precision is 14.33%. If it's 0.6 then 15.93%. If it's 0.7 then 19.24%. And if it's 0.8 then it's 20.08%.
 
 Summary figures
 ===============
@@ -814,80 +887,46 @@ In conclusion, we have chosen three models: logistic regression with ridge regul
 #valid_pred_ridge <- predict(weighted_logistic_fit_ridge, test_data, type = "prob")
 valid_pred_rf <- predict(rf_weighted_fit, test_data, type = "prob")
 valid_pred_gbm <- predict(gbm_fit, test_data, type = "prob")
+valid_pred_nnet <- predict(weighted_nnet, test_data, type = "prob")
 
 #pred_val_ridge <-prediction(valid_pred_ridge[,2], test_data$Inducer)
 pred_val_rf <-prediction(valid_pred_rf[,2], test_data$Inducer)
 pred_val_gbm <-prediction(valid_pred_gbm[,2], test_data$Inducer)
+pred_val_nnet <-prediction(valid_pred_nnet[,2], test_data$Inducer)
 
 #perf_val <- performance(pred_val, "auc") #0.81
 
 #perf_val_ridge <- performance(pred_val_ridge, "tpr", "fpr")
 perf_val_rf <- performance(pred_val_rf, "tpr", "fpr")
 perf_val_gbm <- performance(pred_val_gbm, "tpr", "fpr")
+perf_val_nnet <- performance(pred_val_nnet, "tpr", "fpr")
 
-plot(perf_val_ridge, col = "red", lwd = 3.5)
+plot(perf_val_elastic, col = "red", lwd = 3.5)
 par(new=T)
-plot(perf_val_rf, col = "chocolate", lwd = 3.5)
-par(new=T)
-plot(perf_val_gbm, col = "brown", lwd = 3.5)
-par(new=T)
-lines(x = c(0,1), y = c(0,1))
-legend(x= "topright", y=0.92, legend=c("Ridge", "Random Forest", "Gradient Boosting"),
-       col=c("red", "chocolate", "brown"), lty=1, cex=0.8)
-```
-
-![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-36-1.png)
-
-Picture with all algorithms:
-
-``` r
-#valid_pred_ridge <- predict(weighted_logistic_fit_ridge, test_data, type = "prob")
-valid_pred_knn <- predict(knn_model_fit, test_data, type = "prob")
-valid_pred_svm_linear <- predict(svm_Linear, test_data, type = "prob")
-valid_pred_svm_gaussian <- predict(svm_Gaussian, test_data, type = "prob")
-
-#pred_val_ridge <-prediction(valid_pred_ridge[,2], test_data$Inducer)
-pred_val_knn <-prediction(valid_pred_knn[,2], test_data$Inducer)
-pred_val_svm_linear <-prediction(valid_pred_svm_linear[,2], test_data$Inducer)
-pred_val_svm_gaussian <-prediction(valid_pred_svm_gaussian[,2], test_data$Inducer)
-
-#perf_val <- performance(pred_val, "auc") #0.81
-
-#perf_val_ridge <- performance(pred_val_ridge, "tpr", "fpr")
-perf_val_knn <- performance(pred_val_knn, "tpr", "fpr")
-perf_val_svm_linear <- performance(pred_val_svm_linear, "tpr", "fpr")
-perf_val_svm_gaussian <- performance(pred_val_svm_gaussian, "tpr", "fpr")
-
-plot(perf_val_ridge, col = "red", lwd = 3.5)
-par(new=T)
-plot(perf_val_rf, col = "chocolate", lwd = 3.5)
+plot(perf_val_rf, col = "green", lwd = 3.5)
 par(new=T)
 plot(perf_val_gbm, col = "brown", lwd = 3.5)
 par(new=T)
-plot(perf_val_knn, col = "pink", lwd = 3.5)
-par(new=T)
-plot(perf_val_svm_gaussian, col = "aquamarine", lwd = 3.5)
-par(new=T)
-plot(perf_val_svm_linear, col = "darkblue", lwd = 3.5)
+plot(perf_val_nnet, col = "cyan", lwd = 3.5)
 par(new=T)
 lines(x = c(0,1), y = c(0,1))
-legend(x= "topright", y=0.92, legend=c("Ridge", "Random Forest", "Gradient Boosting", "KNN",
-                                       "SVM_Gaussian", "SVM_Linear"),
-       col=c("red", "chocolate", "brown", "pink", "aquamarine", "darkblue"), lty=1, cex=0.8)
+legend(x= "topright", y=0.92, legend=c("Elastic", "Random Forest", "Gradient Boosting", "Neural net"),
+       col=c("red", "green", "brown", "cyan"), lty=1, cex=0.8)
 ```
 
-![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-37-1.png)
+![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-38-1.png)
 
 ROC of key algorithms:
 
 ``` r
 rValues <- resamples(list(ridge = weighted_logistic_fit_ridge,
                           rf = rf_weighted_fit,
-                          gbm = gbm_fit))
+                          gbm = gbm_fit,
+                          nnet = weighted_nnet))
 bwplot(rValues, metric="ROC")
 ```
 
-![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-38-1.png)
+![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-39-1.png)
 
 Specificity:
 
@@ -895,23 +934,12 @@ Specificity:
 bwplot(rValues, metric="Spec")
 ```
 
-![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-39-1.png)
+![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-40-1.png)
 
 Sensitivity:
 
 ``` r
 bwplot(rValues, metric="Sens")
-```
-
-![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-40-1.png)
-
-Accuracy:
-
-``` r
-rValues <- resamples(list(ridge = weighted_logistic_fit_ridge_accuracy,
-                          rf = rf_weighted_fit_accuracy,
-                          gbm = gbm_fit_accuracy))
-bwplot(rValues, metric="Accuracy")
 ```
 
 ![](machine_learning_report_files/figure-markdown_github/unnamed-chunk-41-1.png)

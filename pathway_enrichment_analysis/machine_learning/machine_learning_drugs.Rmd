@@ -301,6 +301,9 @@ train.index <- createDataPartition(all_data$Inducer, p = 0.8, list = FALSE)
 train_data <- all_data[train.index,]
 test_data <- all_data[-train.index,]
 
+save(train_data, file = "train_data.Rdata")
+save(test_data, file = "test_data.Rdata")
+
 ###########################################
 #FOR TESTING
 #x <- test_data$Inducer
@@ -412,6 +415,7 @@ model_list_roc %>%
 #weighted_logistic_fit_lasso %>%
 #  test_roc(data = test_data) %>%
 #  pROC::auc()
+weighted_logistic_fit_ridge
 ```
 ```{r}
 rValues <- resamples(model_list)
@@ -574,7 +578,7 @@ bwplot(rValues, metric="ROC")
 ## Random Forest
 
 Just classic random forest:
-```{r}
+```{r} 
 set.seed(1492)
 #it takes 1 hour to run
 start.time <- Sys.time()
@@ -628,8 +632,11 @@ Random forest with weights:
 set.seed(1492)
 #takes 33 minutes to run!
 start.time <- Sys.time()
-
+#it's around 500 trees by default...
 #tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
+tuneGrid <- expand.grid(mtry = c(8,12,20),
+                        splitrule = c("gini", "extratrees"),
+                        min.node.size = 1)
 
 rf_weighted_fit <- train(Inducer ~., 
                     data = train_data, 
@@ -639,7 +646,18 @@ rf_weighted_fit <- train(Inducer ~.,
                     weights = model_weights,
                     metric = "ROC")
 
+rf_weighted_fit_tuned <- train(Inducer ~., 
+                    data = train_data, 
+                    method = "ranger",
+                    trControl=ctrl,
+                    #tuneLength = 5,
+                    tuneGrid = tuneGrid,
+                    weights = model_weights,
+                    metric = "ROC")
+
 save(rf_weighted_fit, file="rf_weighted_fit.Rdata")
+#still mtry = 2 is the best...
+save(rf_weighted_fit, file="rf_weighted_fit_tuned.Rdata")
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
@@ -651,7 +669,7 @@ rf_weighted_fit %>%
 ```
 ```{r}
 #mtry (#Randomly Selected Predictors)
-rf_weighted_fit$results
+rf_weighted_fit
 ```
 ```{r}
 valid_pred <- predict(rf_weighted_fit, test_data, type = "prob")
@@ -687,6 +705,8 @@ time.taken <- end.time - start.time
 time.taken
 
 save(gbm_fit, file="gbm_fit.Rdata")
+
+gbm_fit
 ```
 
 ```{r}
@@ -1029,3 +1049,192 @@ predictions <- predict(svm_Gaussian_accuracy, x_test)
 # summarize results
 confusionMatrix(predictions, y_test)
 ```
+##Neural nets
+
+###Model Averaged Neural Network
+```{r, message=FALSE, warning=FALSE}
+set.seed(1492)
+
+#tuneGrid=expand.grid(
+#              .alpha=1,
+#              .lambda=seq(0, 2, by = 0.1))
+start.time <- Sys.time()
+
+weighted_avnnet <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "avNNet",
+                                     weights = model_weights,
+                                     #family = "binomial",
+                                     #tuneGrid = tuneGrid,
+                                     tuneLength=5,
+                                     metric = "ROC",
+                                     trControl = ctrl, verbose = FALSE, MaxNWts = 2000)
+
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+save(weighted_avnnet, file="weighted_avnnet.Rdata")
+
+weighted_avnnet %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(weighted_avnnet, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+```{r}
+weighted_avnnet
+```
+
+```{r}
+
+set.seed(1492)
+
+#tuneGrid=expand.grid(
+#              .alpha=1,
+#              .lambda=seq(0, 2, by = 0.1))
+start.time <- Sys.time()
+
+weighted_nnet <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "nnet",
+                                     weights = model_weights,
+                                     #family = "binomial",
+                                     #tuneGrid = tuneGrid,
+                                     tuneLength=5,
+                                     metric = "ROC",
+                                     trControl = ctrl, verbose = FALSE, MaxNWts = 2000)
+
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+save(weighted_nnet, file="weighted_nnet.Rdata")
+
+
+weighted_nnet %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(weighted_nnet, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+```{r}
+weighted_nnet
+```
+
+```{r}
+set.seed(1492)
+
+#tuneGrid=expand.grid(
+#              .alpha=1,
+#              .lambda=seq(0, 2, by = 0.1))
+start.time <- Sys.time()
+
+weighted_pcaNNet <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "pcaNNet",
+                                     weights = model_weights,
+                                     #family = "binomial",
+                                     #tuneGrid = tuneGrid,
+                                     tuneLength=5,
+                                     metric = "ROC",
+                                     trControl = ctrl, verbose = FALSE, MaxNWts = 2000)
+
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+save(weighted_pcaNNet, file="weighted_pcaNNet.Rdata")
+
+
+weighted_pcaNNet %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(weighted_pcaNNet, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+
+```{r}
+#tune model parameters using cross-validation
+set.seed(1492)
+
+#tuneGrid=expand.grid(
+#              .alpha=1,
+#              .lambda=seq(0, 2, by = 0.1))
+start.time <- Sys.time()
+
+#nnetGrid <-  expand.grid(size = seq(from = 9, to = 12, by = 1),
+#                        decay = 1*10^(-4:-1))
+
+weighted_nnet_tune <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "nnet",
+                                     weights = model_weights,
+                                     #family = "binomial",
+                                     #tuneGrid = nnetGrid,
+                                     tuneLength=5,
+                                     metric = "ROC",
+                                     trControl = ctrl, verbose = FALSE, MaxNWts = 2500)
+
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+weighted_nnet <- weighted_nnet_tune
+save(weighted_nnet, file="weighted_nnet.Rdata")
+weighted_nnet
+
+#weighted_nnet %>%
+  #test_roc(data = test_data) %>%
+  #pROC::auc()
+```
+
+```{r}
+nnetGrid <-  expand.grid(size = seq(from = 9, to = 12, by = 1),
+                        decay = 1*10^(-4:-1))
+
+weighted_nnet_tune <- train(Inducer ~ .,
+                                     data = train_data,
+                                     method = "nnet",
+                                     weights = model_weights,
+                                     #family = "binomial",
+                                     tuneGrid = nnetGrid,
+                                     #tuneLength=5,
+                                     metric = "ROC",
+                                     trControl = ctrl, verbose = FALSE, MaxNWts = 2500)
+
+save(weighted_nnet_tune, file="weighted_nnet_tune.Rdata")
+weighted_nnet_tune
+```
+
+```{r}
+gbm_fit %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(gbm_fit, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+
+```
+
