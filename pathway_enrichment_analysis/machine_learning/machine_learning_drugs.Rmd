@@ -18,13 +18,13 @@ suppressWarnings(suppressMessages(library(reshape2)))
 suppressWarnings(suppressMessages(library(dplyr)))
 suppressWarnings(suppressMessages(library(ggplot2)))
 suppressWarnings(suppressMessages(library(cowplot)))
-suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(e1071)))
 suppressWarnings(suppressMessages(library(tibble)))
 suppressWarnings(suppressMessages(library(RColorBrewer)))
 suppressWarnings(suppressMessages(library(edgeR)))
 suppressWarnings(suppressMessages(library(readxl)))
-suppressWarnings(suppressMessages(library(VennDiagram)))
-suppressMessages(suppressWarnings(library(ermineR)))
+suppressWarnings(suppressMessages(library(AUC)))
+suppressMessages(suppressWarnings(library(randomForest)))
 suppressMessages(suppressWarnings(library(hgu133a.db)))
 suppressMessages(suppressWarnings(library(ReactomePA)))
 suppressMessages(suppressWarnings(library(clusterProfiler)))
@@ -38,6 +38,7 @@ suppressMessages(suppressWarnings(library(pROC)))
 suppressMessages(suppressWarnings(library(glmnet)))
 suppressMessages(suppressWarnings(library(ROCR)))
 suppressMessages(suppressWarnings(library(logisticPCA)))
+suppressMessages(suppressWarnings(library(keras)))
 ```
 
 Let's build several machine learning models for SOX17 activation prediction based on small molecule chemical structure. We will consider this problem as a binary classification: 0 if SOX17 is not activated, 1 otherwise. Activation of SOX17 will be based on corresponding log fold change from LINCS expression data. 
@@ -304,6 +305,9 @@ test_data <- all_data[-train.index,]
 save(train_data, file = "train_data.Rdata")
 save(test_data, file = "test_data.Rdata")
 
+load("train_data.Rdata")
+load("test_data.Rdata")
+
 ###########################################
 #FOR TESTING
 #x <- test_data$Inducer
@@ -326,7 +330,7 @@ ctrl <- trainControl(method = "repeatedcv",
                      number = 5,
                      repeats = 5,
                      summaryFunction = twoClassSummary,
-                     classProbs = TRUE)
+                     classProbs = TRUE)#, sampling="up")
 
 # Build weighted model (no regularizer) - gives ideal predictions
 #weighted_logistic_fit <- train(Inducer ~ .,
@@ -575,7 +579,140 @@ rValues <- resamples(list(ridge = weighted_logistic_fit_ridge,
 bwplot(rValues, metric="ROC")
 ```
 
+## SVM (e1071)
+
+```{r}
+#runs for 10 hours!!! params ara cost - 0.1, gamma - 1
+set.seed(1492)
+
+start.time <- Sys.time()
+
+#test_train_data <- lapply(train_data, factor)
+#test_train_data <- as.data.frame(test_train_data)
+
+#tc <- tune.control(cross = 5, nrepeat = 5)
+#x_train <- as.matrix(test_train_data[,1:159])
+
+svm_tune <- tune(svm, train.x=train_data[,1:159], train.y=train_data$Inducer, 
+              kernel="radial", ranges=list(cost=10^(-1:3), gamma=c(0.1,0.5,1,2,4)), tunecontrol = tc,
+              class.weights= c("No" = 1, "Yes" = 19), scale = FALSE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+svm_tune
+```
+```{r}
+set.seed(1492)
+
+start.time <- Sys.time()
+
+svm_model_after_tune <- svm(Inducer ~ ., data=train_data, kernel="radial", cost=0.1, gamma=1,
+                            class.weights= c("No" = 1, "Yes" = 19), scale = FALSE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+save(svm_model_after_tune, file = "svm_model_after_tune.Rdata")
+
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(svm_model_after_tune, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+
+
+## Naive bayes
+
+Naive bayes with weights:
+```{r}
+set.seed(1492)
+#it takes 1 hour to run
+start.time <- Sys.time()
+
+#tuneGrid <- expand.grid(C = seq(0.1,10,by=0.1))
+
+#test_train_data <- test_train_data[ , !(names(test_train_data) %in% c("X8", "X11", "X137"))]
+
+test_train_data <- lapply(train_data, factor)
+test_train_data <- as.data.frame(test_train_data)
+
+tuneGrid <- expand.grid(fL = c(1),
+                        usekernel = c(FALSE),
+                        adjust=c(1.0))
+
+nbayes_fit <- train(Inducer ~., 
+                    data = test_train_data, 
+                    method = "nb",
+                    trControl=ctrl,
+                    weights = model_weights,
+                    tuneGrid = tuneGrid, 
+                    #tuneLength = 10,
+                    metric = "ROC")
+                    #preProcess = "conditionalX")
+
+save(nbayes_fit, file="nb_fit.Rdata")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+nbayes_fit
+```
+```{r}
+nbayes_fit %>%
+  test_roc(data = train_data[1:1000,]) %>%
+  pROC::auc()
+```
+```{r}
+# make predictions
+x_test <- train_data[1:1000,1:159]
+y_test <- train_data[1:1000,]$Inducer
+predictions <- predict(nbayes_fit, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(nbayes_fit, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
+```
+
+
 ## Random Forest
+
+Random forest from randomForest package with strata and samp sizes
+```{r}
+set.seed(1492)
+start.time <- Sys.time()
+
+tuneGrid <- expand.grid(mtry = 2^(1:6))
+
+#1000 trees, uch that most observations participate in several trees (ideally it would be 2000)
+randomforest_fit <- train(Inducer ~., 
+                    data = train_data[1:1000,], 
+                    method = "rf",
+                    trControl=ctrl,
+                    #weights = model_weights,
+                    #tuneLength = 10,
+                    tuneGrid = tuneGrid, strata = train_data$Inducer,
+                    sampsize = rep(sum(train_data$Inducer == "Yes"), 2),
+                    metric = "ROC", ntree = 1000, allowParallel=TRUE)
+
+
+save(randomforest_fit, file="randomforest_fit.Rdata")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+
 
 Just classic random forest:
 ```{r} 
@@ -1237,4 +1374,208 @@ predictions <- predict(gbm_fit, x_test)
 confusionMatrix(predictions, y_test)
 
 ```
+
+## Deep neural nets
+
+Let's try to fit deep neural network using keras:
+```{r}
+write.table(train_data, file = "train_data.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(test_data, file = "test_data.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+
+x_train <- train_data[,1:159]
+y_train <- train_data$Inducer
+
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+
+y_train <- as.character(y_train)
+y_train[y_train == "Yes"] <-  1
+y_train[y_train == "No"] <-  0
+y_train <- factor(y_train, levels = c(0,1))
+
+y_test <- as.character(y_test)
+y_test[y_test == "Yes"] <-  1
+y_test[y_test == "No"] <-  0
+y_test <- factor(y_test, levels = c(0,1))
+
+
+x_train <- as.matrix(x_train)
+y_train <- as.matrix(y_train)
+dimnames(x_train) <- NULL
+
+x_test <- as.matrix(x_test)
+y_test <- as.matrix(y_test)
+dimnames(x_test) <- NULL
+
+y_trainLabels <- to_categorical(y_train)
+
+# One hot encode test target values
+y_testLabels <- to_categorical(y_test)
+
+#for joke
+y_train_test <- y_train[1:1000]
+x_train_test <- x_train[1:1000,]
+
+#write.table(x_train, file = "x_train.txt", "quote" = FALSE,
+#          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+#write.table(x_test, file = "x_test.txt", "quote" = FALSE,
+#          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+#write.table(y_train, file = "y_train.txt", "quote" = FALSE,
+#          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+#write.table(y_test, file = "y_test.txt", "quote" = FALSE,
+#          sep = "\t", row.names = FALSE, col.names = FALSE)
+```
+
+We have a lot of hyperparameters here:
+
+* Learning rate
+* Momentum beta
+* Mini-batch size
+* No. of hidden units
+* No. of layers
+* Learning rate decay
+* Regularization lambda
+* Activation functions
+* Adam beta1 & beta2
+
+Just let's start with some random model:
+```{r}
+#model <- keras_model_sequential() 
+
+# Add layers to the model
+#we have 159 features
+#model %>% 
+#    layer_dense(units = 10, activation = 'relu', input_shape = c(159)) %>% 
+#    layer_dense(units = 5, activation = 'relu') %>%
+#    layer_dense(units = 1, activation = 'sigmoid')
+
+#model %>% compile(
+#     loss = 'binary_crossentropy',
+#     optimizer = 'adam',
+#     metrics = 'accuracy'
+# )
+
+#counter <- funModeling::freq(y_train, plot=F) %>% dplyr::select(var, frequency)
+#majority <- max(counter$frequency)
+#counter$weight <- ceiling(majority/counter$frequency)
+
+#l_weights <- setNames(as.list(counter$weight), counter$var)
+
+# Save the training history in the history variable
+#There are 95% drugs which are class 0, and 5% drugs which are class 0.  
+#I balance 2 classes using the class_weights
+#history <- model %>% fit(
+#  x_train, y_train, 
+#  epochs = 200, batch_size = 256, 
+#  validation_split = 0.2,
+#  class_weight = list(0.95, 0.05)
+# )
+
+# Plot the model loss of the training data
+#plot(history$metrics$loss, main="Model Loss", xlab = "epoch", ylab="loss", col="blue", type="l")
+
+# Plot the model loss of the test data
+#lines(history$metrics$val_loss, col="green")
+
+# Add legend
+#legend("topright", c("train","test"), col=c("blue", "green"), lty=c(1,1))
+```
+
+```{r}
+# Plot the accuracy of the training data 
+#plot(history$metrics$acc, main="Model Accuracy", xlab = "epoch", ylab="accuracy", col="blue", type="l")
+
+# Plot the accuracy of the validation data
+#lines(history$metrics$val_acc, col="green")
+
+# Add Legend
+#legend("bottomright", c("train","test"), col=c("blue", "green"), lty=c(1,1))
+```
+```{r}
+# Predict the classes for the test data
+#classes <- model %>% predict_classes(x_test, batch_size = 128)
+
+# Confusion matrix
+#table(y_test, classes)
+```
+
+Python:
+```{python, engine.path = '/usr/bin/python3'}
+from keras.models import Sequential
+from keras.layers import Dense
+import matplotlib.pyplot as plt
+import numpy
+from collections import Counter
+from sklearn.metrics import classification_report, confusion_matrix
+# fix random seed for reproducibility
+numpy.random.seed(7)
+
+X_train = numpy.loadtxt("x_train.txt", delimiter="\t")
+Y_train = numpy.loadtxt("y_train.txt", delimiter="\t")
+X_test = numpy.loadtxt("x_test.txt", delimiter="\t")
+Y_test = numpy.loadtxt("y_test.txt", delimiter="\t")
+
+#class1_train = X_train[0:426, :]
+#class0_train = X_train[426:, :]
+#new_class1 = numpy.random.randint(low=0,high=len(class1_train), size = 8000)
+#new_class1 = class1_train[new_class1]
+#X_train = numpy.concatenate((new_class1, class0_train))
+
+#Y0_train = Y_train[426:] 
+#Y1_train = numpy.repeat(1, 8000)
+#Y_train = numpy.concatenate((Y1_train, Y0_train))
+
+def get_class_weights(y):
+    counter = Counter(y)
+    majority = max(counter.values())
+    return  {cls: float(majority/count) for cls, count in counter.items()}
+    
+l_weights = get_class_weights(Y_train)
+
+# create model
+model = Sequential()
+model.add(Dense(120, input_dim=159, activation='relu'))
+model.add(Dense(50, activation='relu'))
+model.add(Dense(20, activation='relu'))
+model.add(Dense(1, activation='sigmoid'))
+
+#compile model
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+
+#history = model.fit(X_train, Y_train, epochs=50, batch_size=512, validation_split = 0.2)
+history = model.fit(X_train, Y_train, epochs=50, batch_size=10, validation_split = 0.2, class_weight = {0:1, 1:19})
+
+# summarize history for loss
+#plt.plot(history.history['loss'])
+#plt.plot(history.history['val_loss'])
+#plt.title('model loss')
+#plt.ylabel('loss')
+#plt.xlabel('epoch')
+#plt.legend(['train', 'test'], loc='upper left')
+#plt.show()
+
+# summarize history for accuracy
+#plt.plot(history.history['acc'])
+#plt.plot(history.history['val_acc'])
+#plt.title('model accuracy')
+#plt.ylabel('accuracy')
+#plt.xlabel('epoch')
+#plt.legend(['train', 'test'], loc='upper left')
+#plt.show()
+y_pred = model.predict(X_test)
+y_pred = (y_pred > 0.5)
+cm = confusion_matrix(Y_test, y_pred)
+print(cm)
+```
+
+
+
 
