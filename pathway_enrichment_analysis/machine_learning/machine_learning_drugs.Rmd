@@ -39,6 +39,7 @@ suppressMessages(suppressWarnings(library(glmnet)))
 suppressMessages(suppressWarnings(library(ROCR)))
 suppressMessages(suppressWarnings(library(logisticPCA)))
 suppressMessages(suppressWarnings(library(keras)))
+suppressMessages(suppressWarnings(library(onehot)))
 ```
 
 Let's build several machine learning models for SOX17 activation prediction based on small molecule chemical structure. We will consider this problem as a binary classification: 0 if SOX17 is not activated, 1 otherwise. Activation of SOX17 will be based on corresponding log fold change from LINCS expression data. 
@@ -307,6 +308,17 @@ save(test_data, file = "test_data.Rdata")
 
 load("train_data.Rdata")
 load("test_data.Rdata")
+
+#get the validation set for deep learning (see below)
+validation.index <- createDataPartition(train_data$Inducer, p = 0.8, list = FALSE)
+train_data_deep <- train_data[validation.index,]
+validation_data_deep <- train_data[-validation.index,]
+
+save(train_data_deep, file = "train_data_deep.Rdata")
+save(validation_data_deep, file = "validation_data_deep.Rdata")
+
+load("train_data_deep.Rdata")
+load("validation_data_deep.Rdata")
 
 ###########################################
 #FOR TESTING
@@ -693,24 +705,40 @@ Random forest from randomForest package with strata and samp sizes
 set.seed(1492)
 start.time <- Sys.time()
 
-tuneGrid <- expand.grid(mtry = 2^(1:6))
+tuneGrid <- expand.grid(mtry = 2^(1:4))
 
 #1000 trees, uch that most observations participate in several trees (ideally it would be 2000)
 randomforest_fit <- train(Inducer ~., 
-                    data = train_data[1:1000,], 
+                    data = train_data, 
                     method = "rf",
                     trControl=ctrl,
                     #weights = model_weights,
                     #tuneLength = 10,
                     tuneGrid = tuneGrid, strata = train_data$Inducer,
                     sampsize = rep(sum(train_data$Inducer == "Yes"), 2),
-                    metric = "ROC", ntree = 1000, allowParallel=TRUE)
+                    metric = "ROC", ntree = 2000, allowParallel=TRUE)
 
 
 save(randomforest_fit, file="randomforest_fit.Rdata")
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
+```
+```{r}
+randomforest_fit
+```
+```{r}
+randomforest_fit %>%
+  test_roc(data = test_data) %>%
+  pROC::auc()
+```
+```{r}
+# make predictions
+x_test <- test_data[,1:159]
+y_test <- test_data$Inducer
+predictions <- predict(randomforest_fit, x_test)
+# summarize results
+confusionMatrix(predictions, y_test)
 ```
 
 
@@ -1388,49 +1416,128 @@ write.table(test_data, file = "test_data.txt", "quote" = FALSE,
 
 x_train <- train_data[,1:159]
 y_train <- train_data$Inducer
+x_train_deep <- train_data_deep[,1:159]
+y_train_deep <- train_data_deep$Inducer
+x_validation_deep <- validation_data_deep[,1:159]
+y_validation_deep <- validation_data_deep$Inducer
 
 x_test <- test_data[,1:159]
 y_test <- test_data$Inducer
+
+#for one hot encoding
+encoder_train_deep <- onehot(as.data.frame(y_train_deep))
+y_train_deep_onehot <- predict(encoder_train_deep, as.data.frame(y_train_deep))
+encoder_validation_deep <- onehot(as.data.frame(y_validation_deep))
+y_validation_deep_onehot <- predict(encoder_validation_deep, as.data.frame(y_validation_deep))
+encoder_test <- onehot(as.data.frame(y_test))
+y_test_onehot <- predict(encoder_test, as.data.frame(y_test))
 
 y_train <- as.character(y_train)
 y_train[y_train == "Yes"] <-  1
 y_train[y_train == "No"] <-  0
 y_train <- factor(y_train, levels = c(0,1))
 
+y_train_deep <- as.character(y_train_deep)
+y_train_deep[y_train_deep == "Yes"] <-  1
+y_train_deep[y_train_deep == "No"] <-  0
+y_train_deep <- factor(y_train_deep, levels = c(0,1))
+
+y_validation_deep <- as.character(y_validation_deep)
+y_validation_deep[y_validation_deep == "Yes"] <-  1
+y_validation_deep[y_validation_deep == "No"] <-  0
+y_validation_deep <- factor(y_validation_deep, levels = c(0,1))
+
 y_test <- as.character(y_test)
 y_test[y_test == "Yes"] <-  1
 y_test[y_test == "No"] <-  0
 y_test <- factor(y_test, levels = c(0,1))
 
-
 x_train <- as.matrix(x_train)
 y_train <- as.matrix(y_train)
 dimnames(x_train) <- NULL
+
+x_train_deep <- as.matrix(x_train_deep)
+y_train_deep <- as.matrix(y_train_deep)
+dimnames(x_train_deep) <- NULL
+dimnames(y_train_deep_onehot) <- NULL
 
 x_test <- as.matrix(x_test)
 y_test <- as.matrix(y_test)
 dimnames(x_test) <- NULL
 
-y_trainLabels <- to_categorical(y_train)
+x_validation_deep <- as.matrix(x_validation_deep)
+y_validation_deep <- as.matrix(y_validation_deep)
+dimnames(x_validation_deep) <- NULL
+dimnames(y_validation_deep_onehot) <- NULL
+dimnames(y_test_onehot) <- NULL
+
+#y_trainLabels <- to_categorical(y_train)
+#y_trainLabels_deep <- to_categorical(y_train_deep)
 
 # One hot encode test target values
-y_testLabels <- to_categorical(y_test)
+#y_testLabels <- to_categorical(y_test)
 
-#for joke
-y_train_test <- y_train[1:1000]
-x_train_test <- x_train[1:1000,]
+#Oversampling with onehot
+all_train <- cbind(x_train_deep, y_train_deep_onehot)
+all_train_yes <- all_train[1:341,]
+new_dat_train <- all_train_yes[sample(nrow(all_train_yes), 6000, replace = T),]
+all_train <- rbind(new_dat_train, all_train)
+x_train_deep_over <- all_train[,1:159]
+y_train_deep_onehot_over <- all_train[,160:161]
 
-#write.table(x_train, file = "x_train.txt", "quote" = FALSE,
-#          sep = "\t", row.names = FALSE, col.names = FALSE)
+#Oversampling without onehot
+all_train <- cbind(x_train_deep, y_train_deep)
+all_train_yes <- all_train[1:341,]
+new_dat_train <- all_train_yes[sample(nrow(all_train_yes), 6000, replace = T),]
+all_train <- rbind(new_dat_train, all_train)
+x_train_deep_over <- all_train[,1:159]
+y_train_deep_over <- all_train[,160]
+y_train_deep_over <- as.data.frame(y_train_deep_over)
 
-#write.table(x_test, file = "x_test.txt", "quote" = FALSE,
-#          sep = "\t", row.names = FALSE, col.names = FALSE)
+write.table(x_train, file = "x_train.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
 
-#write.table(y_train, file = "y_train.txt", "quote" = FALSE,
-#          sep = "\t", row.names = FALSE, col.names = FALSE)
+write.table(x_test, file = "x_test.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
 
-#write.table(y_test, file = "y_test.txt", "quote" = FALSE,
-#          sep = "\t", row.names = FALSE, col.names = FALSE)
+write.table(y_train, file = "y_train.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(y_test, file = "y_test.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(x_train_deep, file = "x_train_deep.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(y_train_deep, file = "y_train_deep.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(x_validation_deep, file = "x_validation_deep.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(y_validation_deep, file = "y_validation_deep.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+#for one hot
+write.table(y_train_deep_onehot, file = "y_train_deep_onehot.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(y_validation_deep_onehot, file = "y_validation_deep_onehot.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(y_test_onehot, file = "y_test_onehot.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+#oversampling
+write.table(x_train_deep_over, file = "x_train_deep_over.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(y_train_deep_over, file = "y_train_deep_over.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
+write.table(y_train_deep_onehot_over, file = "y_train_deep_onehot_over.txt", "quote" = FALSE,
+          sep = "\t", row.names = FALSE, col.names = FALSE)
+
 ```
 
 We have a lot of hyperparameters here:
@@ -1576,6 +1683,166 @@ cm = confusion_matrix(Y_test, y_pred)
 print(cm)
 ```
 
+
+Python code with Tensorflow (add batch normalization and initialize with Xavier-glorot):
+```{python, engine.path = '/usr/bin/python3'}
+from __future__ import print_function
+import tensorflow as tf
+import numpy as np
+
+#read the data
+#X_train = np.loadtxt("x_train_deep.txt", delimiter="\t")
+#Y_train = np.loadtxt("y_train_deep.txt", delimiter="\t")
+
+#OVERSAMPLING
+X_train = np.loadtxt("x_train_deep_over.txt", delimiter="\t")
+Y_train = np.loadtxt("y_train_deep_over.txt", delimiter="\t")
+
+X_validation = np.loadtxt("x_validation_deep.txt", delimiter="\t")
+Y_validation = np.loadtxt("y_validation_deep.txt", delimiter="\t")
+#Y_validation = np.loadtxt("y_validation_deep_onehot.txt", delimiter="\t")
+
+X_test = np.loadtxt("x_test.txt", delimiter="\t")
+Y_test = np.loadtxt("y_test.txt", delimiter="\t")
+#Y_test = np.loadtxt("y_test_onehot.txt", delimiter="\t")
+
+print("X train dim: ", X_train.shape)
+print("Y train dim: ", Y_train.shape)
+print("X validation dim: ", X_validation.shape)
+print("Y validation dim: ", Y_validation.shape)
+print("X test dim: ", X_test.shape)
+print("Y test dim: ", Y_test.shape)
+
+#to make things reproducible
+random_state = 42
+np.random.seed(random_state)
+tf.set_random_seed(random_state)
+
+# HyperParameters
+training_epochs = 150
+display_step = 2
+batch_size = 64
+learning_rate = 0.001
+keep_prob = 0.8 #dropout 
+
+# Network Parameters
+n_hidden_1 = 256 # 1st layer number of neurons
+n_hidden_2 = 256 # 2nd layer number of neurons
+#n_hidden_3 = 256
+num_input = 159 # MACCS descriptors without 7 features
+num_classes = 2 #  total classes (Inducer/not-Inducer); they are mutually exclusive
+
+# tf Graph input
+X = tf.placeholder("float", [None, num_input])
+Y = tf.placeholder("float", [None, 1]) 
+
+# Store layers weight & bias
+weights = {
+    'h1': tf.Variable(tf.random_normal([num_input, n_hidden_1])),
+    'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2])),
+    #'h3': tf.Variable(tf.random_normal([n_hidden_2, n_hidden_3])),
+    'out': tf.Variable(tf.random_normal([n_hidden_2, 1]))
+    #'out': tf.Variable(tf.random_normal([n_hidden_2, num_classes]))
+}
+biases = {
+    'b1': tf.Variable(tf.random_normal([n_hidden_1])),
+    'b2': tf.Variable(tf.random_normal([n_hidden_2])),
+    #'b3': tf.Variable(tf.random_normal([n_hidden_3])),
+    'out': tf.Variable(tf.random_normal([1]))
+    #'out': tf.Variable(tf.random_normal([num_classes]))
+}
+
+
+keep_prob = tf.placeholder("float")
+
+# Create model
+def neural_net(x, weights, biases, keep_prob):
+    # Hidden fully connected layer with 256 neurons
+    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
+    layer_1 = tf.nn.relu(layer_1) #relu function
+    layer_1 = tf.nn.dropout(layer_1, keep_prob) #keep prob for dropout
+    # Hidden fully connected layer with 256 neurons
+    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
+    layer_2 = tf.nn.relu(layer_2) #relu function
+    layer_2 = tf.nn.dropout(layer_2, keep_prob) #keep prob for dropout
+    
+    #layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
+    #layer_3 = tf.nn.relu(layer_3) #relu function
+    #layer_3 = tf.nn.dropout(layer_3, keep_prob) #keep prob for dropout
+    # Output fully connected layer with a neuron for each class
+    out_layer = tf.matmul(layer_2, weights['out']) + biases['out'] 
+    #out_layer = tf.matmul(layer_3, weights['out']) + biases['out']
+    return out_layer
+    
+#create model
+predictions = neural_net(X, weights, biases, keep_prob)
+
+#cost function is cross-entropy (sigmoid)
+cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=predictions, labels=Y))
+#cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=predictions, labels=Y))
+
+#use Adam optimizer
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+
+#EVALUATION
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    
+    for epoch in range(training_epochs):
+        avg_cost = 0.0
+        total_batch = int(len(X_train) / batch_size)
+        x_batches = np.array_split(X_train, total_batch)
+        y_batches = np.array_split(Y_train, total_batch)
+        for i in range(total_batch):
+            batch_x, batch_y = x_batches[i], y_batches[i]
+            batch_y = np.reshape(batch_y, (-1,1))
+            _, c = sess.run([optimizer, cost], 
+                            feed_dict={X : batch_x, 
+                                       Y : batch_y, 
+                                       keep_prob : 0.8})
+            avg_cost += c / total_batch
+        if epoch % display_step == 0:
+            print("Epoch:", '%04d' % (epoch+1), "cost=", \
+                "{:.9f}".format(avg_cost))
+
+    print("Optimization Finished!")
+    
+    #ACCURACY
+    # make into a probability
+    pred_prob = tf.nn.sigmoid(predictions)
+    # threshold above 0.5, or use AUC
+    pred_bin = tf.cast(pred_prob > 0.5, dtype=tf.float32)
+    
+    correct_prediction = tf.equal(pred_bin, Y)
+    correct_prediction = tf.cast(correct_prediction, tf.float32)
+    accuracy = tf.reduce_mean(correct_prediction)
+    Y_validation = np.reshape(Y_validation, (-1,1))
+    print("Validation accuracy:", accuracy.eval({X: X_validation, Y: Y_validation, keep_prob: 1.0}))
+    
+    #AUC
+    #a = tf.placeholder(tf.float32)
+    #b = tf.placeholder(tf.float32)
+    
+    #a = tf.cast(tf.argmax(pred_prob, 1), "float")
+    #b = tf.cast(tf.argmax(Y,1), "float")
+    #init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+    #sess.run(init)
+    #_,roc_score = tf.metrics.auc(b, a)
+    #print(roc_score.eval({X : X_validation, Y : Y_validation, keep_prob: 1.0}))
+    #FOR CONFUSION MATRIX
+    x = pred_bin.eval({X : X_validation, Y : Y_validation, keep_prob: 1.0})
+
+#CONFUSION MATRIX with validation set
+xr = x.reshape(1, 1694)
+yv = Y_validation.reshape(1, 1694)
+
+#print(xr.tolist()[0])
+#print(yv.tolist()[0])
+con = tf.confusion_matrix(labels=yv.tolist()[0], predictions=xr.tolist()[0])
+sess = tf.Session()
+with sess.as_default():
+        print(sess.run(con)) #ROWS ARE TRUE LABELS, COLUMNS ARE PREDICTIONS
+```
 
 
 
