@@ -10,13 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 ```{r, echo=FALSE}
 library(knitr)
-#suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(GEOquery)))
 suppressMessages(suppressWarnings(library(SingleCellExperiment)))
 suppressMessages(suppressWarnings(library(scater)))
 suppressMessages(suppressWarnings(library(dplyr)))
 ```
 
-## Analysis of GSE75748 single cell type expression
+## Analysis of GSE75748 single cell type expression (single diff step)
 
 Here we analyze differentiation of H1 human embryonic stem cells using [scdiff](https://github.com/phoenixding/scdiff). We will look right now into two branches only - definitive endoderm (DECs) and mesoderm (ECs). We aim to find transcription factors that play an essential role in DE differentiation, and link relevant pathways to them. 
 
@@ -255,6 +255,34 @@ dim(my_data)
 #remove bad cells
 cell_info <- cell_info[colnames(my_data),]
 
+#####################################################
+#Analysis of DE cells only 
+#####################################################
+cell_info_DE <- cell_info[!grepl("^EC", cell_info$cells),]
+my_data_DE <- my_data[, rownames(cell_info_DE)]
+add_to_my_data_DE <- data.frame(Dataset = colnames(my_data_DE), time = cell_info_DE$time, 
+                             Label = cell_info_DE$cells)
+
+my_data_DE <- t(my_data_DE)
+my_data_DE <- cbind(add_to_my_data_DE, my_data_DE)
+rownames(my_data_DE) <- NULL
+write.table(my_data_DE, file = "my_data_DE.txt", sep = "\t", row.names = FALSE, quote = FALSE)
+#####################################################
+
+#####################################################
+#Analysis of EC cells only 
+#####################################################
+cell_info_EC <- cell_info[!grepl("^DEC", cell_info$cells),]
+my_data_EC <- my_data[, rownames(cell_info_EC)]
+add_to_my_data_EC <- data.frame(Dataset = colnames(my_data_EC), time = cell_info_EC$time, 
+                             Label = cell_info_EC$cells)
+
+my_data_EC <- t(my_data_EC)
+my_data_EC <- cbind(add_to_my_data_EC, my_data_EC)
+rownames(my_data_EC) <- NULL
+write.table(my_data_EC, file = "my_data_EC.txt", sep = "\t", row.names = FALSE, quote = FALSE)
+#####################################################
+
 add_to_my_data <- data.frame(Dataset = colnames(my_data), time = cell_info$time, 
                              Label = cell_info$cells)
 
@@ -267,5 +295,257 @@ dim(my_data)
 ```{r}
 #save(my_data, file = "my_data.Rdata")
 #write.table(my_data, file = "my_data.txt", sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+Extracting tf_dna info from regnetwork file:
+```{r}
+regfile <- read.table("regnetwork_tf_dna.csv", sep = ",", header = TRUE)
+regfile <- regfile[,c(1,3)]
+colnames(regfile) <- c("TF", "Gene")
+write.table(regfile, file="regnetwork.tf_dna", quote=FALSE, sep="\t", row.names = FALSE)
+```
+
+```{bash}
+#code for scdiff running
+#scdiff -i my_data.txt -t regnetwork.tf_dna -k example.config -o ~/ESC_RNA_seq/single_cell_analysis/stem_cells_output
+```
+
+
+Extracting tf_dna info from regnetwork file (big):
+```{r}
+regfile <- read.table("human.source", sep = "\t", header = TRUE)
+regfile <- regfile[,c(1,3)]
+colnames(regfile) <- c("TF", "Gene")
+write.table(regfile, file="regnetwork_big.tf_dna", quote=FALSE, sep="\t", row.names = FALSE)
+```
+
+## Analysis of GSE75748 single cell type expression (time series data)
+
+Load matrix with data (Gene expected counts were calculated using RSEM 1.2.3):
+```{r}
+dat <- read.delim("GSE75748_sc_time_course_ec.csv", sep=",", header=TRUE)
+
+#first column is gene names
+rownames(dat) <- dat[,1]
+dat <- dat[,-1]
+
+dim(dat)
+```
+
+758 cells overall:
+
+Continue to analyze this data:
+```{r}
+cellIDs <- colnames(dat)
+
+cell_info <- stringr::str_split_fixed(cellIDs, "_", 2)
+exp_info <- stringr::str_split_fixed(cell_info[,1], "\\.", 2)
+cell_info <- cbind(cellIDs, exp_info, cell_info[,2])
+
+rownames(cell_info) <- cell_info[,1]
+cell_info <- cell_info[,-1]
+
+colnames(cell_info) <- c("cells", "experiment", "number")
+```
+
+Experimentig with SingleCellExperiment class:
+```{r}
+sceset <- SingleCellExperiment(assays = list(counts = as.matrix(dat)), colData=cell_info)
+```
+
+Remove genes that are not expressed in any cell:
+```{r}
+keep_feature <- rowSums(counts(sceset) > 0) > 0
+sceset <- sceset[keep_feature, ]
+isSpike(sceset, "ERCC") <- grepl("ERCC-", rownames(sceset))
+dim(sceset)
+```
+
+Check the library size as well:
+```{r}
+umi <- calculateQCMetrics(sceset,
+                          feature_controls = list(ERCC = isSpike(sceset, "ERCC")))
+
+hist(
+    umi$total_counts,
+    breaks = 100
+)
+abline(v = 25000, col = "red")
+```
+Looks like that majority of cells have relatively big number of sequenced reads.
+
+In addition to ensuring sufficient sequencing depth for each sample, we also want to make sure that the reads are distributed across the transcriptome. Thus, we count the total number of unique genes detected in each sample.
+```{r}
+hist(
+    umi$total_features,
+    breaks = 100
+)
+abline(v = 7000, col = "red")
+```
+
+we conclude that most cells have between 7,000-11,000 detected genes (majority of cells have around 10,000-11,000 genes covered), which is normal for high-depth scRNA-seq. 
+```{r}
+#keep_feature <- rowSums(counts(sceset) > 0) > 0
+#sceset <- sceset[keep_feature, ]
+umi$use <-  umi$total_features > 7000
+table(umi$use)
+```
+
+In addition to removing cells with poor quality, it is usually a good idea to exclude genes where we suspect that technical artefacts may have skewed the results. Moreover, inspection of the gene expression profiles may provide insights about how the experimental procedures could be improved.
+
+It is often instructive to consider the number of reads consumed by the top 50 expressed genes.
+```{r}
+plotQC(umi, type = "highest-expression")
+```
+The distributions are relatively flat indicating (but not guaranteeing!) good coverage of the full transcriptome of these cells.
+ERCC are spikes here.
+
+It is typically a good idea to remove genes whose expression level is considered “undetectable”. We define a gene as detectable if at least two cells contain more than 1 transcript from the gene. We go with the threshold - at least 10 reads (for 2 cells).
+```{r}
+filter_genes <- apply(
+    counts(umi[ , colData(umi)$use]), 
+    1, 
+    function(x) length(x[x > 10]) >= 2
+)
+rowData(umi)$use <- filter_genes
+
+table(filter_genes)
+```
+```{r}
+dim(umi[rowData(umi)$use, colData(umi)$use])
+```
+
+```{r}
+assay(umi, "logcounts_raw") <- log2(counts(umi) + 1)
+
+#umi.qc <- umi[rowData(umi)$use, colData(umi)$use]
+endog_genes <- rowData(umi)$use
+
+#assay(umi, "logcounts_raw") <- log2(counts(umi) + 1)
+#saveRDS(umi, file = "umi.rds") #save file
+```
+
+Detecting outliers with PCA:
+```{r, warning=FALSE, message=FALSE}
+umi_out <- plotPCA(
+    umi,
+    shape_by = "cells",
+    pca_data_input = "pdata",
+    detect_outliers = TRUE,
+    return_SCE = TRUE
+)
+```
+```{r}
+table(umi_out$outlier)
+```
+```{r}
+#removing outliers
+#umi.qc <- umi.qc[, !umi.qc$outlier]
+#dim(umi.qc)
+not_outlier_cells <- !colData(umi_out)$outlier
+```
+```{r}
+umi.qc <- umi[endog_genes, not_outlier_cells]
+#saveRDS(umi.qc, file = "umi.qc.rds") #save file
+dim(umi.qc)
+```
+
+The PCA plot:
+```{r}
+#LAPACK issue
+plotPCA(
+    umi.qc,
+    exprs_values = "logcounts_raw",
+    colour_by = "experiment"
+)
+```
+
+The tSNE plot:
+```{r}
+plotTSNE(
+    umi.qc,
+    exprs_values = "logcounts_raw",
+    perplexity = 130,
+    colour_by = "experiment",
+    rand_seed = 123456
+)
+```
+
+Now let's perform "Normalisation for gene/transcript length". We compute the total gene length in Kilobases by using the end_position and start_position fields:
+```{r}
+umi.qc <- getBMFeatureAnnos(
+    umi.qc,
+    filters = "hgnc_symbol", 
+    attributes = c(
+        "ensembl_gene_id",
+        "hgnc_symbol",
+        "chromosome_name",
+        "start_position",
+        "end_position"
+    ), 
+    feature_symbol = "hgnc_symbol",
+    feature_id = "ensembl_gene_id",
+    biomart = "ENSEMBL_MART_ENSEMBL", 
+    dataset = "hsapiens_gene_ensembl",
+    host = "www.ensembl.org"
+)
+
+eff_length <- 
+    abs(rowData(umi.qc)$end_position - rowData(umi.qc)$start_position) / 1000
+
+tpm(umi.qc) <- log2(calculateTPM(umi.qc, eff_length) + 1)
+#save(umi.qc, file = "umi.qc.Rdata")
+```
+
+```{r, message=FALSE}
+#fpkm(umi.qc) <- log2(calculateFPKM(umi.qc, eff_length) + 1)
+```
+
+Since now we did filtering for quality of genes, cells, we did tpm normalization, we can use it for scdiff running!
+
+Exploring example input file for scdiff tool:
+```{r, warning=FALSE, message=FALSE}
+example <- read.table("example.txt", header = TRUE, sep = "\t")
+example <- t(example)
+example[1:10,1:10] %>% kable()
+```
+
+Now let's construct our own example for scdiff
+```{r}
+#add time column to cell_info -> differentiation was for 5 days.
+cell_info <- as.data.frame(cell_info, row.names = rownames(cell_info))
+time <- rep(0, nrow(cell_info))
+time[which(cell_info$experiment == '00hbs4')] <- 0
+time[which(cell_info$experiment == '12h')] <- 12
+time[which(cell_info$experiment == '24h')] <- 24
+time[which(cell_info$experiment == '36h')] <- 36
+time[which(cell_info$experiment == '72h')] <- 72
+time[which(cell_info$experiment == '96h')] <- 96
+cell_info$time <- time
+
+my_data <- tpm(umi.qc) %>% as.data.frame()
+dim(my_data)
+```
+
+```{r}
+dim(cell_info)
+```
+
+```{r}
+#remove bad cells
+cell_info <- cell_info[colnames(my_data),]
+
+add_to_my_data <- data.frame(Dataset = colnames(my_data), time = cell_info$time, 
+                             Label = cell_info$cells)
+
+my_data <- t(my_data)
+
+my_data <- cbind(add_to_my_data, my_data)
+rownames(my_data) <- NULL
+dim(my_data)
+
+```
+```{r}
+write.table(my_data, file = "my_data_time_series.txt", sep = "\t", row.names = FALSE, quote = FALSE)
 ```
 
