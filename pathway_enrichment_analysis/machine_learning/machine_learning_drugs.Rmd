@@ -1844,5 +1844,194 @@ with sess.as_default():
         print(sess.run(con)) #ROWS ARE TRUE LABELS, COLUMNS ARE PREDICTIONS
 ```
 
+ACCURACY: 0.9067 SENSITIVITY: 0.364 SPECIFICITY: 0.9353 PRECISION: 0.2296 F1: 0.2818
 
 
+
+CORRECTED CODE
+```{python, engine.path = '/usr/bin/python3'}
+from __future__ import print_function
+import tensorflow as tf
+import numpy as np
+from sklearn.metrics import confusion_matrix
+
+#read the data
+#X_train = np.loadtxt("x_train_deep.txt", delimiter="\t")
+#Y_train = np.loadtxt("y_train_deep.txt", delimiter="\t")
+
+#OVERSAMPLING
+X_train = np.loadtxt("x_train_deep_over.txt", delimiter="\t")
+Y_train = np.loadtxt("y_train_deep_over.txt", delimiter="\t")
+
+X_validation = np.loadtxt("x_validation_deep.txt", delimiter="\t")
+Y_validation = np.loadtxt("y_validation_deep.txt", delimiter="\t")
+#Y_validation = np.loadtxt("y_validation_deep_onehot.txt", delimiter="\t")
+
+X_test = np.loadtxt("x_test.txt", delimiter="\t")
+Y_test = np.loadtxt("y_test.txt", delimiter="\t")
+#Y_test = np.loadtxt("y_test_onehot.txt", delimiter="\t")
+
+print("X train dim: ", X_train.shape)
+print("Y train dim: ", Y_train.shape)
+print("X validation dim: ", X_validation.shape)
+print("Y validation dim: ", Y_validation.shape)
+print("X test dim: ", X_test.shape)
+print("Y test dim: ", Y_test.shape)
+
+#to make things reproducible
+random_state = 42
+np.random.seed(random_state)
+tf.set_random_seed(random_state)
+
+# HyperParameters
+training_epochs = 150
+display_step = 2
+batch_size = 64
+learning_rate = 0.001
+keep_prob = 0.8 #dropout 
+
+# Network Parameters
+n_hidden_1 = 256 # 1st layer number of neurons
+n_hidden_2 = 256 # 2nd layer number of neurons
+#n_hidden_3 = 256
+num_input = 159 # MACCS descriptors without 7 features
+num_classes = 2 #  total classes (Inducer/not-Inducer)
+
+# tf Graph input
+X = tf.placeholder("float", [None, num_input])
+Y = tf.placeholder("float", [None, 1]) 
+global_step = tf.Variable(name='step', dtype = tf.int32, initial_value = 0)
+#Y = tf.placeholder("float", [None, num_classes])
+
+# Store layers weight & bias
+weights = {
+    'h1': tf.Variable(tf.random_normal([num_input, n_hidden_1])),
+    'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2])),
+    #'h3': tf.Variable(tf.random_normal([n_hidden_2, n_hidden_3])),
+    'out': tf.Variable(tf.random_normal([n_hidden_2, 1]))
+    #'out': tf.Variable(tf.random_normal([n_hidden_2, num_classes]))
+}
+biases = {
+    'b1': tf.Variable(tf.random_normal([n_hidden_1])),
+    'b2': tf.Variable(tf.random_normal([n_hidden_2])),
+    #'b3': tf.Variable(tf.random_normal([n_hidden_3])),
+    'out': tf.Variable(tf.random_normal([1]))
+    #'out': tf.Variable(tf.random_normal([num_classes]))
+}
+
+
+keep_prob = tf.placeholder("float")
+# Small epsilon value for the BN transform
+epsilon = 1e-3
+
+#with batch normalization
+def neural_net(x, weights, biases, keep_prob,train,reuse):
+    with tf.variable_scope('Neural_Net',reuse=reuse):
+        # Hidden fully connected layer with 256 neurons
+        layer_1 = tf.matmul(x, weights['h1'])
+       # batch_mean1, batch_var1 = tf.nn.moments(layer_1,[0])
+        #scale1 = tf.Variable(tf.ones([n_hidden_1]))
+        #beta1 = tf.Variable(tf.zeros([n_hidden_1]))
+        #layer_1 = tf.nn.batch_normalization(layer_1,batch_mean1,batch_var1,beta1,scale1,epsilon)
+        layer1_bn = tf.contrib.layers.batch_norm(inputs=layer_1,is_training=train,activation_fn=tf.nn.relu)
+        #layer_1 = tf.nn.relu(layer_1) #relu function
+        layer_1 = tf.nn.dropout(layer1_bn, keep_prob) #keep prob for dropout
+
+        # Hidden fully connected layer with 256 neurons
+        layer_2 = tf.matmul(layer_1, weights['h2'])
+        #batch_mean2, batch_var2 = tf.nn.moments(layer_2,[0])
+        #scale2 = tf.Variable(tf.ones([n_hidden_2]))
+        #beta2 = tf.Variable(tf.zeros([n_hidden_2]))
+        #layer_2 = tf.nn.batch_normalization(layer_2,batch_mean2,batch_var2,beta2,scale2,epsilon)
+        #layer_2 = tf.nn.relu(layer_2) #relu function
+        layer2_bn = tf.contrib.layers.batch_norm(inputs=layer_2,is_training=train,activation_fn=tf.nn.relu)
+        layer_2 = tf.nn.dropout(layer2_bn, keep_prob) #keep prob for dropout
+
+        #layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
+        #layer_3 = tf.nn.relu(layer_3) #relu function
+        #layer_3 = tf.nn.dropout(layer_3, keep_prob) #keep prob for dropout
+        # Output fully connected layer with a neuron for each class
+        out_layer = tf.matmul(layer_2, weights['out']) + biases['out'] 
+        #out_layer = tf.matmul(layer_3, weights['out']) + biases['out']
+    return out_layer
+
+#create model
+predictions_train = neural_net(X, weights, biases, keep_prob, train=True, reuse=None)
+predictions_val = neural_net(X, weights, biases, keep_prob, train=False, reuse=True)
+#cost function is cross-entropy (sigmoid)
+cost_train = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=predictions_train, labels=Y))
+cost_val = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=predictions_val, labels=Y))
+#cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=predictions, labels=Y))
+
+loss_train_sum = tf.summary.scalar('train_loss',cost_train)
+loss_val_sum= tf.summary.scalar('val_loss',cost_val)
+#ACCURACY
+# make into a probability
+pred_prob_tr = tf.nn.sigmoid(predictions_train)
+# threshold above 0.5, or use AUC
+pred_bin_tr = tf.cast(pred_prob_tr > 0.5, dtype=tf.float32)
+
+correct_prediction_tr = tf.equal(pred_bin_tr, Y)
+correct_prediction_tr = tf.cast(correct_prediction_tr, tf.float32)
+accuracy_train = tf.reduce_mean(correct_prediction_tr)
+
+pred_prob_val = tf.nn.sigmoid(predictions_val)
+# threshold above 0.5, or use AUC
+pred_bin_val = tf.cast(pred_prob_val > 0.5, dtype=tf.float32)
+
+correct_prediction_val = tf.equal(pred_bin_val, Y)
+correct_prediction_val = tf.cast(correct_prediction_val, tf.float32)
+accuracy_val = tf.reduce_mean(correct_prediction_val)
+
+acc_tr_sum = tf.summary.scalar('train_acc',accuracy_train)
+acc_val_sum= tf.summary.scalar('val_acc',accuracy_val)
+#use Adam optimizer
+
+summary_ops_tr = tf.summary.merge([acc_tr_sum,loss_train_sum])
+summary_ops_val = tf.summary.merge([acc_val_sum,loss_val_sum])
+
+#get collections grabs variables under the scope 'UPDATE_OPS'
+update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
+logdir='/home/german/ESC_RNA_seq/pathway_enrichment_analysis/machine_learning/deep_learning/tf_event/'
+writer=tf.summary.FileWriter(logdir)
+# with statement ensures updates are done before backpropagation
+with tf.control_dependencies(update_ops):
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost_train,global_step)
+    
+#EVALUATION
+Y_validation = np.reshape(Y_validation, (-1,1))
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    
+    for epoch in range(training_epochs):
+        avg_cost = 0.0
+        total_batch = int(len(X_train) / batch_size)
+        x_batches = np.array_split(X_train, total_batch)
+        y_batches = np.array_split(Y_train, total_batch)
+        for i in range(total_batch):
+            batch_x, batch_y = x_batches[i], y_batches[i]
+            batch_y = np.reshape(batch_y, (-1,1))
+            _,train_sum, c,global_step_o = sess.run([optimizer,summary_ops_tr, cost_train,global_step], 
+                            feed_dict={X : batch_x, 
+                                       Y : batch_y, 
+                                       keep_prob : 0.8})
+            writer.add_summary(train_sum,global_step_o)
+            avg_cost += c / total_batch
+            
+        val_sum, c_val = sess.run([summary_ops_val, cost_val], 
+                            feed_dict={X : X_validation, 
+                                       Y : Y_validation, 
+                                       keep_prob : 1})
+        
+        writer.add_summary(val_sum,epoch)
+        #avg_cost += c / total_batch
+            
+        if epoch % display_step == 0:
+            print("Epoch:", '%04d' % (epoch+1), "cost=", \
+                "{:.9f}".format(avg_cost))
+
+    print("Optimization Finished!")
+
+```
