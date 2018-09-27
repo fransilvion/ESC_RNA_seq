@@ -1,0 +1,118 @@
+---
+title: "Regulon analysis of bulk data"
+author: "German Novakovskiy"
+date: "September 26, 2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+I analyze here bulk rna-seq data from [GSE109658](https://www.ncbi.nlm.nih.gov/pubmed/29427839), since authors have both bulk and single cell RNA-seq data, plus for differentiation they used classical protocol, which Francis is using: CHIR + Activin A for the first day, Activin A only for next 3 days.
+```{r, echo=FALSE}
+library(knitr)
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(GEOquery)))
+suppressWarnings(suppressMessages(library(data.table)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(cowplot)))
+suppressWarnings(suppressMessages(library(limma)))
+suppressWarnings(suppressMessages(library(tibble)))
+suppressWarnings(suppressMessages(library(RColorBrewer)))
+suppressWarnings(suppressMessages(library(edgeR)))
+suppressWarnings(suppressMessages(library(readxl)))
+suppressWarnings(suppressMessages(library(VennDiagram)))
+suppressWarnings(suppressMessages(library(pheatmap)))
+suppressMessages(suppressWarnings(library(ermineR)))
+suppressMessages(suppressWarnings(library(hgu133a.db)))
+suppressMessages(suppressWarnings(library(annotate)))
+suppressMessages(suppressWarnings(library(fgsea)))
+```
+
+## GSE109658 analysis
+
+```{r}
+#load data
+load("genesReferenceAll109658.Rdata")
+
+head(genesReferenceAll109658) %>% kable()
+```
+```{r}
+#making gmt file
+source <- read.table("human.source", sep = "\t", stringsAsFactors = F)
+colnames(source) <- c("Regulator", "RegId", "Target", "TargId")
+
+#remove all miRNA and related terms
+source <- source %>% filter(!startsWith(Regulator, "hsa-")) %>%
+  filter(!startsWith(Target, "hsa-")) 
+
+uniqRegul <- unique(source$Regulator) #1412 regulators
+
+regulatorList <- sapply(uniqRegul, function(x) {
+  res <- source %>% filter(Regulator %in% x)
+  res <- res$Target
+  return(res)
+})
+
+lenRegul <- lapply(regulatorList, length)
+df <- data.frame(unlist(lenRegul))
+colnames(df) <- c("Size of regulon")
+
+hist(df$`Size of regulon`, breaks = 50, col = "red", main = "Regulon sizes distribution")
+```
+
+Delete those regulons that have higher than 300 and less than 5 (SOX17 has this number of targets) targets:
+```{r}
+goodRegulons <- df %>% 
+  rownames_to_column("Regulators") %>%
+  filter(`Size of regulon` <= 300 & `Size of regulon` >= 5)
+
+goodRegulons <- goodRegulons$Regulators
+regulatorList <- regulatorList[goodRegulons]
+```
+
+
+```{r}
+#write to gmt file
+output <- lapply(seq_along(regulatorList), function(mylist, n, i) {
+  #print(n[[i]], mylist[[i]])
+  lineToWrite <- c(n[[i]], n[[i]], mylist[[i]])
+  lineToWrite <- paste(lineToWrite, collapse = "\t")
+  write(lineToWrite, "RegNetwork.gmt", sep="\n", append= T)}, mylist = regulatorList, n = names(regulatorList))
+```
+
+Perform GSEA for RNA-seq data using RegNetwork gmt file:
+```{r}
+#reading gmt file
+pathwaysReg <- gmtPathways("~/ESC_RNA_seq/Regulon/Bulk/RegNetwork.gmt")
+
+#for the first day
+geneVector <- genesReferenceAll109658$age1
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg1 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg1 <- fgseaReg1 %>% filter(padj < 0.05) %>% nrow()
+
+#for the second day
+geneVector <- genesReferenceAll109658$age2
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg2 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg2 <- fgseaReg2 %>% filter(padj < 0.05) %>% nrow()
+
+#for the third day
+geneVector <- genesReferenceAll109658$age3
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg3 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg3 <- fgseaReg3 %>% filter(padj < 0.05) %>% nrow()
+
+#for the fourth day
+geneVector <- genesReferenceAll109658$age4
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg4 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg4 <- fgseaReg4 %>% filter(padj < 0.05) %>% nrow()
+
+```
+
