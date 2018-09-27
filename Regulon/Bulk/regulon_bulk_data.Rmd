@@ -88,8 +88,10 @@ output <- lapply(seq_along(regulatorList), function(mylist, n, i) {
 Perform GSEA for RNA-seq data using RegNetwork gmt file:
 ```{r}
 #reading gmt file
+set.seed(42)
 pathwaysReg <- gmtPathways("~/ESC_RNA_seq/Regulon/Bulk/RegNetwork.gmt")
 
+#without putting into function, for implicity
 #for the first day
 geneVector <- genesReferenceAll109658$age1
 names(geneVector) <- rownames(genesReferenceAll109658)
@@ -114,5 +116,97 @@ names(geneVector) <- rownames(genesReferenceAll109658)
 fgseaReg4 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
 reg4 <- fgseaReg4 %>% filter(padj < 0.05) %>% nrow()
 
+gseaData <- list(fgseaReg1, fgseaReg2, fgseaReg3, fgseaReg4)
+print(c(reg1, reg2, reg3, reg4))
 ```
 
+TF's that are active at second day, compared to 0 day:
+```{r}
+x <- fgseaReg2 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at third day, compared to 0 day:
+```{r}
+y <- fgseaReg3 %>% filter(padj < 0.05) 
+y
+```
+
+TF's that are active at fourth day, compared to 0 day:
+```{r}
+z <- fgseaReg4 %>% filter(padj < 0.05) 
+z
+```
+
+Plotting activity of transcription factors:
+```{r}
+tfs <- unique(c(x$pathway, y$pathway, z$pathway))
+
+tfs <- c("BRCA1", tfs)
+
+calculateActivity <- function(tf, gseaResults){
+  
+  res <- sapply(gseaResults, function(x, tfName){
+    p_val <- x %>% filter(pathway == tfName) %>% dplyr::select(padj)
+    nes <- x %>% filter(pathway == tfName) %>% dplyr::select(NES)
+    val <- sign(nes)*(-1)*log(p_val)
+    return(val)}, 
+    tfName = tf)
+  
+  names(res) <- rep(tf, length(res))
+  res <- unlist(res)
+  return(res)
+  #df <- data.frame(TF = rep(tf, length(res)), Activity = res, Days = c(1,2,3,4))
+}
+
+activities <- sapply(tfs, calculateActivity, gseaResults = gseaData)
+#rownames(activities) <- NULL
+activities <- as.data.frame(t(activities))
+colnames(activities) <- c(1, 2, 3, 4)
+activities <- activities %>% rownames_to_column("TF")
+activities <- melt(activities)
+colnames(activities) <- c("TF", "Day", "Activity")
+activities$Day <- as.numeric(activities$Day)
+#activities <- activities %>% filter(TF == "SMAD3")
+```
+```{r}
+#BRCA1 - random TF, an outlier, just to show the contrast
+ggplot(data = activities, aes(x = Day, y = Activity, colour = TF))+
+  geom_line(size = 2) +
+  geom_hline(yintercept = 0) +
+  ggtitle("TF activities")
+```
+
+Two transcription factors - SRY, SMAD3 - are active on day second (beginning of DE differentiation):
+```{r}
+#SMAD3
+ggplot(data = activities %>% filter(TF == "SMAD3"), aes(x = Day, y = Activity))+
+  geom_line(size = 2, colour = "red")+
+  ggtitle("SMAD3 activity")
+```
+```{r}
+#SRY
+ggplot(data = activities %>% filter(TF == "SRY"), aes(x = Day, y = Activity))+
+  geom_line(size = 2, colour = "blue")+
+  ggtitle("SRY activity")
+```
+
+These two and also SMAD1 and PPARA are the most active, peak is at day 3.
+
+Information about these transcription factors (and relevance to DE):
+
+1. SMAD3 - one of the key players in DE differentiation through TGF-beta; Wiki pathways: TGF-beta Receptor Signaling, TGF-B Signaling in Thyroid Cells for Epithelial-Mesenchymal Transition, Role of Osx and miRNAs in tooth development, AGE/RAGE pathway,
+TGF-beta Signaling Pathway, Mesodermal Commitment Pathway, Factors and pathways affecting insulin-like growth factor (IGF1)-Akt signaling, Endoderm Differentiation, Cell Cycle, Canonical and Non-Canonical TGF-B signaling, LncRNA involvement in canonical Wnt signaling and colorectal cancer; KEGG pathways: cell cycle, wnt signal pathway, tgf-beta pathway.
+2. SRY - sex determination factor, maybe we see it here because of batch effects (sex)?
+3. GLI1 - Kegg: hedgehog signaling pathway, Wiki: Hedgehog Signaling Pathway
+4. GLI2 - Kegg: also hedgehog; Wiki: hedgehog and DE differentiation
+5. GLI3 - Kegg: also hedgehog; Wiki: hedgehog and ectoderm differentiation
+6. SMAD1 - Kegg: tgf-beta; Wiki: tgf-beta, BMP signaling, ESC pluripotency pathways, Mesodermal commitment, heart development.
+7. LEF1 - Kegg: wnt-signaling; Wiki: tgf-beta, wnt, mesodermal differentiation, endoderm differentiation. Reactome: Formation of the beta-catenin:TCF transactivating complex
+8. ETS1 - Kegg: dorso-ventral axis formation; Wiki - VEGFA-VEGFR2 Signaling Pathway, tgf-beta as well. Reactome:  ERK/MAPK targets, RUNX2/RUNX3 regulation.
+9. RARA - Wiki: wnt; Reactome: Pten regulation
+10. FOXL1 - Wiki: VEGFA-VEGFR2 Signaling Pathway, tgf-beta, wnt, mesodermal and DE differentiation.
+11. CREBBP - Kegg: cell cycle, wnt signal, notch, tgf-beta, jak_stat; Wiki: tgf-beta, wnt, notch signaling, IL-6 signaling, tnf alpha; Reactome - Activation of the TFAP2 (AP-2) family of transcription factors,  RUNX1 regulates transcription of genes involved in differentiation of myeloid cells. 
+12. MCM3 - Kegg: dna replication, cell cycle; Wiki: DNA replication, G1 to S cell cycle control, cell cycle.
+13. PPARA - Kegg: Ppar signaling pathway, adipocytokine signaling pathway; Wiki: estrogne receptor pathway, adipogenesis, PPAR alpha pathway, PPAR signaling pathway, energy metabolism, Irinotecan Pathway, nuclear receptors. Reactome - regulation of lipid metabolism. (I guess, it more relates to mesoderm)
+14. 6256 - RXRA - Kegg: PPAR signal pathway; Wiki: PI3K/AKT/mTOR, Transcription factor regulation in adipogenesis, NRF2 pathway, PPAR signaling pathway   
