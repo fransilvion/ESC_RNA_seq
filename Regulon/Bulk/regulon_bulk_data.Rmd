@@ -33,14 +33,8 @@ suppressMessages(suppressWarnings(library(annotate)))
 suppressMessages(suppressWarnings(library(fgsea)))
 ```
 
-## GSE109658 analysis
+## Making gmt file (all relations)
 
-```{r}
-#load data
-load("genesReferenceAll109658.Rdata")
-
-head(genesReferenceAll109658) %>% kable()
-```
 ```{r}
 #making gmt file
 source <- read.table("human.source", sep = "\t", stringsAsFactors = F)
@@ -84,6 +78,115 @@ output <- lapply(seq_along(regulatorList), function(mylist, n, i) {
   lineToWrite <- paste(lineToWrite, collapse = "\t")
   write(lineToWrite, "RegNetwork.gmt", sep="\n", append= T)}, mylist = regulatorList, n = names(regulatorList))
 ```
+
+## Making STRONG RELATIONS gmt file
+
+```{r}
+#making gmt file
+source_strong <- read.table("strong_relations.csv", sep = ",", stringsAsFactors = F, header = TRUE)
+source_strong <- source_strong[,1:4]
+colnames(source_strong) <- c("Regulator", "RegId", "Target", "TargId")
+
+#remove all miRNA and related terms
+source_strong <- source_strong %>% filter(!startsWith(Regulator, "hsa-")) %>%
+  filter(!startsWith(Target, "hsa-")) 
+
+uniqRegul_strong <- unique(source_strong$Regulator) #302 regulators
+
+regulatorList_strong <- sapply(uniqRegul_strong, function(x) {
+  res <- source_strong %>% filter(Regulator %in% x)
+  res <- res$Target
+  return(res)
+})
+
+lenRegul_strong <- lapply(regulatorList_strong, length)
+df_strong <- data.frame(unlist(lenRegul_strong))
+colnames(df_strong) <- c("Size of regulon")
+
+hist(df_strong$`Size of regulon`, breaks = 50, col = "red", main = "Strong regulon sizes distribution")
+```
+
+Delete those regulons that have higher than 300 and less than 5 (SOX17 has this number of targets) targets:
+```{r}
+goodRegulons_strong <- df_strong %>% 
+  rownames_to_column("Regulators") %>%
+  filter(`Size of regulon` <= 300 & `Size of regulon` >= 5)
+
+goodRegulons_strong <- goodRegulons_strong$Regulators
+regulatorList_strong <- regulatorList_strong[goodRegulons_strong]
+```
+
+
+```{r}
+#write to gmt file
+output <- lapply(seq_along(regulatorList_strong), function(mylist, n, i) {
+  #print(n[[i]], mylist[[i]])
+  lineToWrite <- c(n[[i]], n[[i]], mylist[[i]])
+  lineToWrite <- paste(lineToWrite, collapse = "\t")
+  write(lineToWrite, "RegNetworkStrong.gmt", sep="\n", append= T)}, mylist = regulatorList_strong, 
+  n = names(regulatorList_strong))
+```
+
+## Making STRONG+INTERMEDIATE RELATIONS gmt file
+
+```{r}
+#making gmt file
+source_interm <- read.table("intermidiate_relations.csv", sep = ",", stringsAsFactors = F, header = TRUE)
+source_interm <- source_interm[,1:4]
+colnames(source_interm) <- c("Regulator", "RegId", "Target", "TargId")
+
+#remove all miRNA and related terms
+source_interm <- source_interm %>% filter(!startsWith(Regulator, "hsa-")) %>%
+  filter(!startsWith(Target, "hsa-")) 
+
+source_int_str <- rbind(source_interm, source_strong)
+
+uniqRegul_int_str <- unique(source_int_str$Regulator) #302 regulators
+
+regulatorList_int_str <- sapply(uniqRegul_int_str, function(x) {
+  res <- source_int_str %>% filter(Regulator %in% x)
+  res <- res$Target
+  return(res)
+})
+
+lenRegul_int_str <- lapply(regulatorList_int_str, length)
+df_int_str <- data.frame(unlist(lenRegul_int_str))
+colnames(df_int_str) <- c("Size of regulon")
+```
+
+Delete those regulons that have higher than 300 and less than 5 (SOX17 has this number of targets) targets:
+```{r}
+goodRegulons_int_str <- df_int_str %>% 
+  rownames_to_column("Regulators") %>%
+  filter(`Size of regulon` <= 300 & `Size of regulon` >= 5)
+
+goodRegulons_int_str <- goodRegulons_int_str$Regulators
+regulatorList_int_str <- regulatorList_int_str[goodRegulons_int_str]
+```
+
+
+```{r}
+#write to gmt file
+output <- lapply(seq_along(regulatorList_int_str), function(mylist, n, i) {
+  #print(n[[i]], mylist[[i]])
+  lineToWrite <- c(n[[i]], n[[i]], mylist[[i]])
+  lineToWrite <- paste(lineToWrite, collapse = "\t")
+  write(lineToWrite, "RegNetworkStrongInterm.gmt", sep="\n", append= T)}, mylist = regulatorList_int_str, 
+  n = names(regulatorList_int_str))
+```
+
+
+## GSE109658 analysis
+
+```{r}
+#load data
+load("genesReferenceAll109658.Rdata")
+
+head(genesReferenceAll109658) %>% kable()
+```
+
+
+### Continue the analysis (all) 
 
 Perform GSEA for RNA-seq data using RegNetwork gmt file:
 ```{r}
@@ -209,4 +312,574 @@ TGF-beta Signaling Pathway, Mesodermal Commitment Pathway, Factors and pathways 
 11. CREBBP - Kegg: cell cycle, wnt signal, notch, tgf-beta, jak_stat; Wiki: tgf-beta, wnt, notch signaling, IL-6 signaling, tnf alpha; Reactome - Activation of the TFAP2 (AP-2) family of transcription factors,  RUNX1 regulates transcription of genes involved in differentiation of myeloid cells. 
 12. MCM3 - Kegg: dna replication, cell cycle; Wiki: DNA replication, G1 to S cell cycle control, cell cycle.
 13. PPARA - Kegg: Ppar signaling pathway, adipocytokine signaling pathway; Wiki: estrogne receptor pathway, adipogenesis, PPAR alpha pathway, PPAR signaling pathway, energy metabolism, Irinotecan Pathway, nuclear receptors. Reactome - regulation of lipid metabolism. (I guess, it more relates to mesoderm)
-14. 6256 - RXRA - Kegg: PPAR signal pathway; Wiki: PI3K/AKT/mTOR, Transcription factor regulation in adipogenesis, NRF2 pathway, PPAR signaling pathway   
+14. 6256 - RXRA - Kegg: PPAR signal pathway; Wiki: PI3K/AKT/mTOR, Transcription factor regulation in adipogenesis, NRF2 pathway, PPAR signaling pathway
+
+### Continue the analysis (strong) 
+
+Perform GSEA for RNA-seq data using RegNetwork gmt file:
+```{r}
+#reading gmt file
+set.seed(42)
+pathwaysReg <- gmtPathways("~/ESC_RNA_seq/Regulon/Bulk/RegNetworkStrong.gmt")
+
+#without putting into function, for implicity
+#for the first day
+geneVector <- genesReferenceAll109658$age1
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg1 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg1 <- fgseaReg1 %>% filter(padj < 0.05) %>% nrow()
+
+#for the second day
+geneVector <- genesReferenceAll109658$age2
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg2 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg2 <- fgseaReg2 %>% filter(padj < 0.05) %>% nrow()
+
+#for the third day
+geneVector <- genesReferenceAll109658$age3
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg3 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg3 <- fgseaReg3 %>% filter(padj < 0.05) %>% nrow()
+
+#for the fourth day
+geneVector <- genesReferenceAll109658$age4
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg4 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg4 <- fgseaReg4 %>% filter(padj < 0.05) %>% nrow()
+
+gseaData <- list(fgseaReg1, fgseaReg2, fgseaReg3, fgseaReg4)
+print(c(reg1, reg2, reg3, reg4))
+```
+
+TF's that are active at first day, compared to 0 day:
+```{r}
+x <- fgseaReg1 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at second day, compared to 0 day:
+```{r}
+x <- fgseaReg2 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at third day, compared to 0 day:
+```{r}
+y <- fgseaReg3 %>% filter(padj < 0.05) 
+y
+```
+
+TF's that are active at fourth day, compared to 0 day:
+```{r}
+z <- fgseaReg4 %>% filter(padj < 0.05) 
+z
+```
+
+Plotting activity of transcription factors:
+```{r}
+tfs <- unique(c(x$pathway, y$pathway, z$pathway))
+
+tfs <- c("BRCA1", tfs)
+
+calculateActivity <- function(tf, gseaResults){
+  
+  res <- sapply(gseaResults, function(x, tfName){
+    p_val <- x %>% filter(pathway == tfName) %>% dplyr::select(padj)
+    nes <- x %>% filter(pathway == tfName) %>% dplyr::select(NES)
+    val <- sign(nes)*(-1)*log(p_val)
+    return(val)}, 
+    tfName = tf)
+  
+  names(res) <- rep(tf, length(res))
+  res <- unlist(res)
+  return(res)
+  #df <- data.frame(TF = rep(tf, length(res)), Activity = res, Days = c(1,2,3,4))
+}
+
+activities <- sapply(tfs, calculateActivity, gseaResults = gseaData)
+#rownames(activities) <- NULL
+activities <- as.data.frame(t(activities))
+colnames(activities) <- c(1, 2, 3, 4)
+activities <- activities %>% rownames_to_column("TF")
+activities <- melt(activities)
+colnames(activities) <- c("TF", "Day", "Activity")
+activities$Day <- as.numeric(activities$Day)
+#activities <- activities %>% filter(TF == "SMAD3")
+```
+```{r}
+#BRCA1 - random TF, an outlier, just to show the contrast
+ggplot(data = activities, aes(x = Day, y = Activity, colour = TF))+
+  geom_line(size = 2) +
+  geom_hline(yintercept = 0) +
+  ggtitle("TF activities")
+```
+
+Two transcription factors - SRY, SMAD3 - are active on day second (beginning of DE differentiation):
+```{r}
+#SMAD3
+ggplot(data = activities %>% filter(TF == "SMAD3"), aes(x = Day, y = Activity))+
+  geom_line(size = 2, colour = "red")+
+  ggtitle("SMAD3 activity")
+```
+
+### Continue the analysis (strong and intermediate) 
+
+Perform GSEA for RNA-seq data using RegNetwork gmt file:
+```{r}
+#reading gmt file
+set.seed(42)
+pathwaysReg <- gmtPathways("~/ESC_RNA_seq/Regulon/Bulk/RegNetworkStrongInterm.gmt")
+
+#without putting into function, for implicity
+#for the first day
+geneVector <- genesReferenceAll109658$age1
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg1 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg1 <- fgseaReg1 %>% filter(padj < 0.05) %>% nrow()
+
+#for the second day
+geneVector <- genesReferenceAll109658$age2
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg2 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg2 <- fgseaReg2 %>% filter(padj < 0.05) %>% nrow()
+
+#for the third day
+geneVector <- genesReferenceAll109658$age3
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg3 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg3 <- fgseaReg3 %>% filter(padj < 0.05) %>% nrow()
+
+#for the fourth day
+geneVector <- genesReferenceAll109658$age4
+names(geneVector) <- rownames(genesReferenceAll109658)
+fgseaReg4 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg4 <- fgseaReg4 %>% filter(padj < 0.05) %>% nrow()
+
+gseaData <- list(fgseaReg1, fgseaReg2, fgseaReg3, fgseaReg4)
+print(c(reg1, reg2, reg3, reg4))
+```
+
+TF's that are active at first day, compared to 0 day:
+```{r}
+x <- fgseaReg1 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at second day, compared to 0 day:
+```{r}
+x <- fgseaReg2 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at third day, compared to 0 day:
+```{r}
+y <- fgseaReg3 %>% filter(padj < 0.05) 
+y
+```
+
+TF's that are active at fourth day, compared to 0 day:
+```{r}
+z <- fgseaReg4 %>% filter(padj < 0.05) 
+z
+```
+
+Plotting activity of transcription factors:
+```{r}
+tfs <- unique(c(x$pathway, y$pathway, z$pathway))
+
+tfs <- c("BRCA1", tfs)
+
+calculateActivity <- function(tf, gseaResults){
+  
+  res <- sapply(gseaResults, function(x, tfName){
+    p_val <- x %>% filter(pathway == tfName) %>% dplyr::select(padj)
+    nes <- x %>% filter(pathway == tfName) %>% dplyr::select(NES)
+    val <- sign(nes)*(-1)*log(p_val)
+    return(val)}, 
+    tfName = tf)
+  
+  names(res) <- rep(tf, length(res))
+  res <- unlist(res)
+  return(res)
+  #df <- data.frame(TF = rep(tf, length(res)), Activity = res, Days = c(1,2,3,4))
+}
+
+activities <- sapply(tfs, calculateActivity, gseaResults = gseaData)
+#rownames(activities) <- NULL
+activities <- as.data.frame(t(activities))
+colnames(activities) <- c(1, 2, 3, 4)
+activities <- activities %>% rownames_to_column("TF")
+activities <- melt(activities)
+colnames(activities) <- c("TF", "Day", "Activity")
+activities$Day <- as.numeric(activities$Day)
+#activities <- activities %>% filter(TF == "SMAD3")
+```
+```{r}
+#BRCA1 - random TF, an outlier, just to show the contrast
+ggplot(data = activities, aes(x = Day, y = Activity, colour = TF))+
+  geom_line(size = 2) +
+  geom_hline(yintercept = 0) +
+  ggtitle("TF activities")
+```
+
+Two transcription factors - SRY, SMAD3 - are active on day second (beginning of DE differentiation):
+```{r}
+#SMAD3
+ggplot(data = activities %>% filter(TF == "SMAD3"), aes(x = Day, y = Activity))+
+  geom_line(size = 2, colour = "red")+
+  ggtitle("SMAD3 activity")
+```
+
+
+## GSE75748 analysis
+
+```{r}
+#load data
+load("genesReferenceAll75748.Rdata")
+
+head(genesReferenceAll75748) %>% kable()
+```
+
+### Continue the analysis (all) 
+
+Perform GSEA for RNA-seq data using RegNetwork gmt file:
+```{r}
+#reading gmt file
+set.seed(42)
+pathwaysReg <- gmtPathways("~/ESC_RNA_seq/Regulon/Bulk/RegNetwork.gmt")
+
+#without putting into function, for implicity
+#for the first 12 hours
+geneVector <- genesReferenceAll75748$time12h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg1 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg1 <- fgseaReg1 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 24 hours
+geneVector <- genesReferenceAll75748$time24h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg2 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg2 <- fgseaReg2 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 36 hours
+geneVector <- genesReferenceAll75748$time36h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg3 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg3 <- fgseaReg3 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 72 hours
+geneVector <- genesReferenceAll75748$time72h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg4 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg4 <- fgseaReg4 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 96 hours
+geneVector <- genesReferenceAll75748$time96h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg5 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg5 <- fgseaReg5 %>% filter(padj < 0.05) %>% nrow()
+
+
+gseaData <- list(fgseaReg1, fgseaReg2, fgseaReg3, fgseaReg4)
+print(c(reg1, reg2, reg3, reg4, reg5))
+```
+
+TF's that are active at first 12h, compared to 0 day:
+```{r}
+x <- fgseaReg1 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at first 24h, compared to 0 day:
+```{r}
+x <- fgseaReg2 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at first 36h, compared to 0 day:
+```{r}
+y <- fgseaReg3 %>% filter(padj < 0.05) 
+y
+```
+
+TF's that are active at first 72h, compared to 0 day:
+```{r}
+z <- fgseaReg4 %>% filter(padj < 0.05) 
+z
+```
+
+TF's that are active at first 96h, compared to 0 day:
+```{r}
+z <- fgseaReg5 %>% filter(padj < 0.05) 
+z
+```
+
+Plotting activity of transcription factors:
+```{r}
+tfs <- unique(c(x$pathway, y$pathway, z$pathway))
+
+tfs <- c("BRCA1", tfs)
+
+calculateActivity <- function(tf, gseaResults){
+  
+  res <- sapply(gseaResults, function(x, tfName){
+    p_val <- x %>% filter(pathway == tfName) %>% dplyr::select(padj)
+    nes <- x %>% filter(pathway == tfName) %>% dplyr::select(NES)
+    val <- sign(nes)*(-1)*log(p_val)
+    return(val)}, 
+    tfName = tf)
+  
+  names(res) <- rep(tf, length(res))
+  res <- unlist(res)
+  return(res)
+  #df <- data.frame(TF = rep(tf, length(res)), Activity = res, Days = c(1,2,3,4))
+}
+
+activities <- sapply(tfs, calculateActivity, gseaResults = gseaData)
+#rownames(activities) <- NULL
+activities <- as.data.frame(t(activities))
+colnames(activities) <- c(1, 2, 3, 4)
+activities <- activities %>% rownames_to_column("TF")
+activities <- melt(activities)
+colnames(activities) <- c("TF", "Day", "Activity")
+activities$Day <- as.numeric(activities$Day)
+#activities <- activities %>% filter(TF == "SMAD3")
+```
+
+SMAD3 activity:
+```{r}
+#SMAD3
+ggplot(data = activities %>% filter(TF == "SMAD3"), aes(x = Day, y = Activity))+
+  geom_line(size = 2, colour = "red")+
+  ggtitle("SMAD3 activity")
+```
+
+
+### Continue the analysis (strong) 
+
+Perform GSEA for RNA-seq data using RegNetwork gmt file:
+```{r}
+#reading gmt file
+set.seed(42)
+pathwaysReg <- gmtPathways("~/ESC_RNA_seq/Regulon/Bulk/RegNetworkStrong.gmt")
+
+#without putting into function, for implicity
+#for the first 12 hours
+geneVector <- genesReferenceAll75748$time12h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg1 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg1 <- fgseaReg1 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 24 hours
+geneVector <- genesReferenceAll75748$time24h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg2 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg2 <- fgseaReg2 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 36 hours
+geneVector <- genesReferenceAll75748$time36h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg3 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg3 <- fgseaReg3 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 72 hours
+geneVector <- genesReferenceAll75748$time72h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg4 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg4 <- fgseaReg4 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 96 hours
+geneVector <- genesReferenceAll75748$time96h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg5 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg5 <- fgseaReg5 %>% filter(padj < 0.05) %>% nrow()
+
+
+gseaData <- list(fgseaReg1, fgseaReg2, fgseaReg3, fgseaReg4)
+print(c(reg1, reg2, reg3, reg4, reg5))
+```
+
+TF's that are active at first 12h, compared to 0 day:
+```{r}
+x <- fgseaReg1 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at first 24h, compared to 0 day:
+```{r}
+x <- fgseaReg2 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at first 36h, compared to 0 day:
+```{r}
+y <- fgseaReg3 %>% filter(padj < 0.05) 
+y
+```
+
+TF's that are active at first 72h, compared to 0 day:
+```{r}
+z <- fgseaReg4 %>% filter(padj < 0.05) 
+z
+```
+
+TF's that are active at first 96h, compared to 0 day:
+```{r}
+z <- fgseaReg5 %>% filter(padj < 0.05) 
+z
+```
+
+Plotting activity of transcription factors:
+```{r}
+tfs <- unique(c(x$pathway, y$pathway, z$pathway))
+
+tfs <- c("BRCA1", tfs)
+
+calculateActivity <- function(tf, gseaResults){
+  
+  res <- sapply(gseaResults, function(x, tfName){
+    p_val <- x %>% filter(pathway == tfName) %>% dplyr::select(padj)
+    nes <- x %>% filter(pathway == tfName) %>% dplyr::select(NES)
+    val <- sign(nes)*(-1)*log(p_val)
+    return(val)}, 
+    tfName = tf)
+  
+  names(res) <- rep(tf, length(res))
+  res <- unlist(res)
+  return(res)
+  #df <- data.frame(TF = rep(tf, length(res)), Activity = res, Days = c(1,2,3,4))
+}
+
+activities <- sapply(tfs, calculateActivity, gseaResults = gseaData)
+#rownames(activities) <- NULL
+activities <- as.data.frame(t(activities))
+colnames(activities) <- c(1, 2, 3, 4)
+activities <- activities %>% rownames_to_column("TF")
+activities <- melt(activities)
+colnames(activities) <- c("TF", "Day", "Activity")
+activities$Day <- as.numeric(activities$Day)
+#activities <- activities %>% filter(TF == "SMAD3")
+```
+
+SMAD3 activity:
+```{r}
+#SMAD3
+ggplot(data = activities %>% filter(TF == "SMAD3"), aes(x = Day, y = Activity))+
+  geom_line(size = 2, colour = "red")+
+  ggtitle("SMAD3 activity")
+```
+
+
+### Continue the analysis (StrongInterm) 
+
+Perform GSEA for RNA-seq data using RegNetwork gmt file:
+```{r}
+#reading gmt file
+set.seed(42)
+pathwaysReg <- gmtPathways("~/ESC_RNA_seq/Regulon/Bulk/RegNetworkStrongInterm.gmt")
+
+#without putting into function, for implicity
+#for the first 12 hours
+geneVector <- genesReferenceAll75748$time12h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg1 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg1 <- fgseaReg1 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 24 hours
+geneVector <- genesReferenceAll75748$time24h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg2 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg2 <- fgseaReg2 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 36 hours
+geneVector <- genesReferenceAll75748$time36h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg3 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg3 <- fgseaReg3 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 72 hours
+geneVector <- genesReferenceAll75748$time72h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg4 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg4 <- fgseaReg4 %>% filter(padj < 0.05) %>% nrow()
+
+#for the first 96 hours
+geneVector <- genesReferenceAll75748$time96h
+names(geneVector) <- rownames(genesReferenceAll75748)
+fgseaReg5 <- fgsea(pathwaysReg, geneVector, minSize=5, maxSize=300, nperm=10000)
+reg5 <- fgseaReg5 %>% filter(padj < 0.05) %>% nrow()
+
+
+gseaData <- list(fgseaReg1, fgseaReg2, fgseaReg3, fgseaReg4)
+print(c(reg1, reg2, reg3, reg4, reg5))
+```
+
+TF's that are active at first 12h, compared to 0 day:
+```{r}
+x <- fgseaReg1 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at first 24h, compared to 0 day:
+```{r}
+x <- fgseaReg2 %>% filter(padj < 0.05) 
+x
+```
+
+TF's that are active at first 36h, compared to 0 day:
+```{r}
+y <- fgseaReg3 %>% filter(padj < 0.05) 
+y
+```
+
+TF's that are active at first 72h, compared to 0 day:
+```{r}
+z <- fgseaReg4 %>% filter(padj < 0.05) 
+z
+```
+
+TF's that are active at first 96h, compared to 0 day:
+```{r}
+z <- fgseaReg5 %>% filter(padj < 0.05) 
+z
+```
+
+Plotting activity of transcription factors:
+```{r}
+tfs <- unique(c(x$pathway, y$pathway, z$pathway))
+
+tfs <- c("BRCA1", tfs)
+
+calculateActivity <- function(tf, gseaResults){
+  
+  res <- sapply(gseaResults, function(x, tfName){
+    p_val <- x %>% filter(pathway == tfName) %>% dplyr::select(padj)
+    nes <- x %>% filter(pathway == tfName) %>% dplyr::select(NES)
+    val <- sign(nes)*(-1)*log(p_val)
+    return(val)}, 
+    tfName = tf)
+  
+  names(res) <- rep(tf, length(res))
+  res <- unlist(res)
+  return(res)
+  #df <- data.frame(TF = rep(tf, length(res)), Activity = res, Days = c(1,2,3,4))
+}
+
+activities <- sapply(tfs, calculateActivity, gseaResults = gseaData)
+#rownames(activities) <- NULL
+activities <- as.data.frame(t(activities))
+colnames(activities) <- c(1, 2, 3, 4)
+activities <- activities %>% rownames_to_column("TF")
+activities <- melt(activities)
+colnames(activities) <- c("TF", "Day", "Activity")
+activities$Day <- as.numeric(activities$Day)
+#activities <- activities %>% filter(TF == "SMAD3")
+```
+
+SMAD3 activity:
+```{r}
+#SMAD3
+ggplot(data = activities %>% filter(TF == "SMAD3"), aes(x = Day, y = Activity))+
+  geom_line(size = 2, colour = "red")+
+  ggtitle("SMAD3 activity")
+```
